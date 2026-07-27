@@ -5,8 +5,8 @@
 Before meaningful coding in a shared repo that uses Workboard:
 
 ```bash
-npm install -g workboard
-# or: npx workboard …
+npm install -g workboard-cli
+# or: npx workboard-cli …
 export WORKBOARD_API_URL=https://repo-org-production.up.railway.app   # optional; default in published CLI
 workboard login
 workboard status

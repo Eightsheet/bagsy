@@ -36,11 +36,11 @@ Before doing meaningful implementation work in a shared repo, coordinate through
 - Prefer `--strict` only when the user asks to hard-block overlaps.
 - If the repo is not linked (`status` exit 2), run `workboard link-repo` once (CLI asks which team if you have several).
 - If the repo is linked in more than one of your teams and there is no remembered choice, pass `--org <slug>` (agents are non-interactive).
-- If not logged in, run `workboard login` (opens browser → WorkOS). Install with `npm i -g workboard` if needed.
+- If not logged in, run `workboard login` (opens browser → WorkOS). Install with `npm i -g workboard-cli` if needed.
 
 ## Notes
 
-- Install: `npm i -g workboard` or `npx workboard …` (default API is production).
+- Install: `npm i -g workboard-cli` or `npx workboard-cli …` (default API is production).
 - Repo is auto-detected from `git remote origin`; team is resolved from which of your teams linked that remote.
 - Config lives in `~/.config/repo-org/config.json` (includes remembered `repoTeams` mappings).
 - API URL override: `WORKBOARD_API_URL`.

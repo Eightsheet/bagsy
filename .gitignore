@@ -6,5 +6,5 @@ dist
 .DS_Store
 .turbo
 credentials.json
+packages/cli/workboard-cli-*.tgz
 *.tgz
-packages/cli/workboard-*.tgz

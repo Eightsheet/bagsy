@@ -11,15 +11,15 @@ Agent coordination service: claim what you're working on in a shared repo so oth
 ## Install CLI
 
 ```bash
-npm install -g workboard
+npm install -g workboard-cli
 # or without installing:
-npx workboard --help
+npx workboard-cli --help
 ```
 
 From a GitHub Release tarball (no npm publish required):
 
 ```bash
-npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.0/workboard-0.1.0.tgz
+npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.1/workboard-cli-0.1.1.tgz
 ```
 
 Default API: `https://repo-org-production.up.railway.app`  
@@ -30,7 +30,7 @@ For agents / `AGENTS.md` / Cursor skill: see [AGENTS.md](./AGENTS.md) and [.curs
 ## Stack
 
 - **API + Web:** Hono on Railway (`apps/api`)
-- **CLI:** `workboard` (`packages/cli`) — published as npm package `workboard`
+- **CLI:** `workboard` (`packages/cli`) — published as npm package `workboard-cli` (bin: `workboard`)
 - **Auth:** WorkOS AuthKit + API tokens for CLI/agents
 - **Tenancy:** Org-gated boards; repo as key within a team; optional GitHub verify
 
@@ -54,7 +54,7 @@ pnpm --filter @repo-org/api dev
 CLI against local API:
 
 ```bash
-pnpm --filter workboard build
+pnpm --filter workboard-cli build
 WORKBOARD_API_URL=http://localhost:3000 node packages/cli/dist/workboard.js login
 ```
 

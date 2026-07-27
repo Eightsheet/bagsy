@@ -23,7 +23,7 @@ export function landingPage(): string {
         <li>
           <strong>Install &amp; sign in</strong>
           <span class="muted">Authenticate your machine against this Workboard.</span>
-          <code class="cmd">npm install -g workboard</code>
+          <code class="cmd">npm install -g workboard-cli</code>
           <code class="cmd">workboard login</code>
         </li>
         <li>
