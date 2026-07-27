@@ -4,7 +4,8 @@ This project uses **Workboard** so agents/humans do not duplicate work on the sa
 
 Before any meaningful implementation (editing code, starting a roadmap item, multi-file changes):
 
-1. Ensure the CLI is available: `npm i -g workboard-cli` (or `npx workboard-cli`)
+1. Install the CLI from the latest GitHub Release tarball (not on npm yet), e.g.  
+   `npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.5/workboard-cli-0.1.5.tgz`
 2. `workboard status` — if not logged in, `workboard login` first
 3. If the repo is not linked (`status` exit 2): `workboard link-repo`
 4. Claim before you start: `workboard claim -t "short title" -f path/one -f path/two`

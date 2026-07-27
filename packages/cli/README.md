@@ -4,10 +4,10 @@ Agent coordination CLI for [Workboard](https://github.com/Eightsheet/repo-org).
 
 ## Install
 
+Not on the npm registry yet. Install from a [GitHub Release](https://github.com/Eightsheet/repo-org/releases/latest) tarball:
+
 ```bash
-npm install -g workboard-cli
-# or
-npx workboard-cli --help
+npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.5/workboard-cli-0.1.5.tgz
 ```
 
 ```bash

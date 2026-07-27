@@ -5,7 +5,7 @@
 Before meaningful coding in a shared repo that uses Workboard:
 
 ```bash
-npm install -g workboard-cli
+npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.5/workboard-cli-0.1.5.tgz
 workboard init --all      # skills only (Claude Code / Codex / Cursor)
 # optional: workboard init --docs   # also append CLAUDE.md / AGENTS.md
 workboard login
@@ -26,3 +26,4 @@ Or paste [templates/CLAUDE.workboard.md](./templates/CLAUDE.workboard.md) / [tem
 - TypeScript monorepo (`apps/api`, `packages/cli`, `packages/shared`)
 - Do not commit `.env` or secrets
 - Prefer PRs into `main` (branch protection enabled)
+- Do not add `Co-authored-by: Cursor` (or similar AI co-author trailers) to commits
