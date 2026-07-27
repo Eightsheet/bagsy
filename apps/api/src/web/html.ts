@@ -242,6 +242,19 @@ h2 {
   line-height: 1.45;
 }
 
+.model-steps li {
+  display: grid;
+  gap: 4px;
+}
+.model-steps li span {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+.how-it-works .steps {
+  margin-top: 4px;
+}
+
 .btn, button {
   appearance: none;
   border: 1.5px solid var(--ink);
@@ -522,8 +535,8 @@ export function topbar(opts: {
   const orgControl =
     opts.orgs.length > 0
       ? `<form class="org-select" method="post" action="/orgs/use">
-          <label class="muted" for="org-slug" style="display:none">Organization</label>
-          <select id="org-slug" name="slug" onchange="this.form.submit()">
+          <label class="muted" for="org-slug" style="display:none">Team</label>
+          <select id="org-slug" name="slug" onchange="this.form.submit()" title="Active team">
             ${opts.orgs
               .map(
                 (o) =>
@@ -532,7 +545,7 @@ export function topbar(opts: {
               .join("")}
           </select>
         </form>`
-      : `<span class="muted">No organization</span>`;
+      : `<span class="muted">No team</span>`;
 
   return `
     <header class="topbar">

@@ -11,6 +11,8 @@ description: >-
 
 Before doing meaningful implementation work in a shared repo, coordinate through `workboard` so other agents/humans do not duplicate effort.
 
+**Model:** A team owns the board. Repos are linked to a team. The CLI picks the team from `git remote` when that remote is linked. Access is membership — not GitHub alone.
+
 ## Required flow
 
 1. **Check** — `workboard status`
@@ -32,11 +34,13 @@ Before doing meaningful implementation work in a shared repo, coordinate through
 - Run `workboard status` near the start of a session that will edit code.
 - If status shows an overlap on the same files/task, do not silently proceed on the same work. Tell the user and either pick a different slice or wait.
 - Prefer `--strict` only when the user asks to hard-block overlaps.
-- If the repo is not linked (`status` exit 2), run `workboard link-repo` once.
-- If not logged in, run `workboard login` (opens browser → WorkOS). Do not invent a parallel org; WorkOS orgs sync automatically.
+- If the repo is not linked (`status` exit 2), run `workboard link-repo` once (CLI asks which team if you have several).
+- If the repo is linked in more than one of your teams and there is no remembered choice, pass `--org <slug>` (agents are non-interactive).
+- If not logged in, run `workboard login` (opens browser → WorkOS). Install with `npm i -g workboard` if needed.
 
 ## Notes
 
-- Repo is auto-detected from `git remote origin`.
-- Config lives in `~/.config/repo-org/config.json`.
+- Install: `npm i -g workboard` or `npx workboard …` (default API is production).
+- Repo is auto-detected from `git remote origin`; team is resolved from which of your teams linked that remote.
+- Config lives in `~/.config/repo-org/config.json` (includes remembered `repoTeams` mappings).
 - API URL override: `WORKBOARD_API_URL`.

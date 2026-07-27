@@ -4,6 +4,8 @@
 
 **Decision:** Keep normal login as-is. When a user invites someone into their org, Workboard auto-creates a WorkOS organization (user-named), makes the inviter admin, and sends the invite — no Dashboard detour.
 
+**Decision (Variant 3):** Team = org. Repos belong to a team. CLI picks team from `git remote` when linked; if linked in more than one of your teams → ask (option A). Membership is the access gate.
+
 Shareframe: [Workboard Roadmap — Org create & invite](https://shareframe-worker.p-5f3.workers.dev/a/workboard-roadmap-org-create-invite/TY8DJsxHCkfevIA1w90XSA/)
 
 ## Current vs target
@@ -11,10 +13,10 @@ Shareframe: [Workboard Roadmap — Org create & invite](https://shareframe-worke
 | Area | Today | Target |
 |------|--------|--------|
 | Login | WorkOS AuthKit; orgs sync from existing WorkOS memberships | Same — normal login unchanged |
-| Org creation | Manual in WorkOS Dashboard; app blocks with “no org” | App creates WorkOS org when the user starts an invite / names an org |
-| Invite | Not in product | Invite from Workboard → WorkOS invitation email |
-| Roles | Membership synced; no first-class admin UX | Creator is auto-admin of the new WorkOS org |
-| Naming | WorkOS Dashboard name only | User sets org name in Workboard at create/invite time |
+| Org creation | App creates WorkOS org from UI | Done (R1) |
+| Invite | Invite from Workboard → WorkOS invitation email | Done (R1) |
+| Team ↔ repo | Link under active org; CLI uses token’s fixed org | CLI resolves team from git remote; ask if ambiguous |
+| Roles | Creator is auto-admin of the new WorkOS org | Same |
 
 ## Items
 
@@ -47,8 +49,18 @@ Product behavior (happy path):
 - Empty name → `"{name|email}'s team"`.
 - Solo without org still allowed; UI offers create+invite instead of Dashboard dead-end.
 
+### R2 — CLI team from git remote (Variant 3)
+
+Status: **Done** · Claim ref: `roadmap:R2-cli-team-remote`
+
+1. `GET /v1/repos/:owner/:repo/context` lists which of the caller’s teams have the repo linked.
+2. API accepts `X-Workboard-Org: slug` to act as that team (must be a member).
+3. CLI auto-picks the sole linked team; if several → interactive prompt once (remembered in `repoTeams`) or `--org`.
+4. Web copy explains team → linked repos → CLI follows remote.
+
 ## Out of scope (for now)
 
 - Billing / seats
 - Custom SSO / directory sync UI beyond what WorkOS already provides
 - Transferring org ownership
+- Hard global uniqueness of a GitHub repo to one team forever

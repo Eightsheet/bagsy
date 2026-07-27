@@ -1,20 +1,49 @@
 {
-  "name": "@repo-org/cli",
+  "name": "workboard",
   "version": "0.1.0",
+  "description": "CLI for Workboard agent coordination — claim work on shared repos",
   "type": "module",
   "bin": {
-    "workboard": "./dist/index.js"
+    "workboard": "./dist/workboard.js"
   },
+  "files": [
+    "dist/workboard.js",
+    "README.md"
+  ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node ./scripts/build.mjs",
     "dev": "tsx src/index.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/workboard.js",
+    "prepack": "npm run build"
   },
-  "dependencies": {
-    "@repo-org/shared": "workspace:*"
+  "engines": {
+    "node": ">=20"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Eightsheet/repo-org.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/Eightsheet/repo-org#readme",
+  "bugs": {
+    "url": "https://github.com/Eightsheet/repo-org/issues"
+  },
+  "keywords": [
+    "workboard",
+    "agents",
+    "cli",
+    "coordination",
+    "claims"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {},
   "devDependencies": {
+    "@repo-org/shared": "workspace:*",
     "@types/node": "^22.13.10",
+    "esbuild": "^0.25.0",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2"
   }

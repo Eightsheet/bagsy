@@ -3,8 +3,9 @@ import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { normalizeRepo } from "@repo-org/shared";
 import { requireApiAuth } from "../auth/middleware.js";
+import { listLocalOrgsForUser } from "../auth/orgs.js";
 import { db } from "../db/client.js";
-import { linkedRepos } from "../db/schema.js";
+import { linkedRepos, memberships, organizations } from "../db/schema.js";
 import {
   createClaim,
   findActiveClaimForUser,
@@ -20,9 +21,42 @@ export const apiRoutes = new Hono();
 
 apiRoutes.use("/v1/*", requireApiAuth);
 
-apiRoutes.get("/v1/me", (c) => {
+apiRoutes.get("/v1/me", async (c) => {
   const auth = c.get("auth");
-  return c.json({ user: auth.user, org: auth.org });
+  const orgs = await listLocalOrgsForUser(auth.user.id);
+  return c.json({
+    user: auth.user,
+    org: auth.org,
+    orgs: orgs.map((o) => ({ id: o.id, slug: o.slug, name: o.name })),
+  });
+});
+
+/** Which of the caller's teams have this repo linked — for CLI auto-pick. */
+apiRoutes.get("/v1/repos/:owner/:repo/context", async (c) => {
+  const auth = c.get("auth");
+  const repo = normalizeRepo(`${c.req.param("owner")}/${c.req.param("repo")}`);
+  const membershipsList = await listLocalOrgsForUser(auth.user.id);
+
+  const rows = await db
+    .select({
+      id: organizations.id,
+      slug: organizations.slug,
+      name: organizations.name,
+    })
+    .from(linkedRepos)
+    .innerJoin(organizations, eq(linkedRepos.orgId, organizations.id))
+    .innerJoin(
+      memberships,
+      and(eq(memberships.orgId, organizations.id), eq(memberships.userId, auth.user.id)),
+    )
+    .where(eq(linkedRepos.repo, repo));
+
+  return c.json({
+    repo,
+    activeOrg: auth.org,
+    linked: rows,
+    memberships: membershipsList.map((o) => ({ id: o.id, slug: o.slug, name: o.name })),
+  });
 });
 
 apiRoutes.get("/v1/repos/:owner/:repo/claims", async (c) => {

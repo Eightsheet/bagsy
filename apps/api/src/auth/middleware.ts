@@ -67,18 +67,46 @@ export async function requireApiAuth(c: Context, next: Next) {
     .set({ lastUsedAt: new Date() })
     .where(eq(apiTokens.id, match.tokenId));
 
+  const user = {
+    id: match.userId,
+    email: match.email,
+    name: match.name,
+    githubLogin: match.githubLogin,
+  };
+
+  let org: AuthOrg = {
+    id: match.orgId,
+    slug: match.orgSlug,
+    name: match.orgName,
+  };
+
+  // CLI may switch team per request (git remote → linked team).
+  const orgOverride = (c.req.header("x-workboard-org") ?? "").trim();
+  if (orgOverride) {
+    const overrideRows = await db
+      .select({
+        orgId: organizations.id,
+        orgSlug: organizations.slug,
+        orgName: organizations.name,
+      })
+      .from(memberships)
+      .innerJoin(organizations, eq(memberships.orgId, organizations.id))
+      .where(and(eq(memberships.userId, match.userId), eq(organizations.slug, orgOverride)))
+      .limit(1);
+    const override = overrideRows[0];
+    if (!override) {
+      return c.json({ error: "Not a member of that organization", org: orgOverride }, 403);
+    }
+    org = {
+      id: override.orgId,
+      slug: override.orgSlug,
+      name: override.orgName,
+    };
+  }
+
   c.set("auth", {
-    user: {
-      id: match.userId,
-      email: match.email,
-      name: match.name,
-      githubLogin: match.githubLogin,
-    },
-    org: {
-      id: match.orgId,
-      slug: match.orgSlug,
-      name: match.orgName,
-    },
+    user,
+    org,
     via: "api_token",
   });
 

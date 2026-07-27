@@ -1,0 +1,72 @@
+name: Release CLI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    name: Publish workboard CLI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm --filter @repo-org/shared build
+      - run: pnpm --filter workboard build
+
+      - name: Read version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Sync package version from tag
+        working-directory: packages/cli
+        run: npm version "${{ steps.ver.outputs.version }}" --no-git-tag-version --allow-same-version
+
+      - name: Pack tarball
+        working-directory: packages/cli
+        run: npm pack
+
+      - name: Upload GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packages/cli/workboard-*.tgz
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            ```bash
+            npm install -g workboard@${{ steps.ver.outputs.version }}
+            # or from this release:
+            npm install -g https://github.com/Eightsheet/repo-org/releases/download/v${{ steps.ver.outputs.version }}/workboard-${{ steps.ver.outputs.version }}.tgz
+            ```
+
+            ```bash
+            workboard login
+            workboard status
+            ```
+
+      - name: Publish to npm
+        working-directory: packages/cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN not set — GitHub Release tarball only."
+            echo "Add repo secret NPM_TOKEN (npm automation token) to publish to the registry."
+            exit 0
+          fi
+          npm publish --access public
