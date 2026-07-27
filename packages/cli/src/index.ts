@@ -23,10 +23,18 @@ const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 
 /** Injected at bundle time; overridable via WORKBOARD_API_URL. */
 declare const __WORKBOARD_DEFAULT_API_URL__: string;
+declare const __WORKBOARD_SKILL_MD__: string;
+declare const __WORKBOARD_CLAUDE_SNIPPET__: string;
+
 const DEFAULT_API_URL =
   typeof __WORKBOARD_DEFAULT_API_URL__ !== "undefined"
     ? __WORKBOARD_DEFAULT_API_URL__
     : "https://repo-org-production.up.railway.app";
+
+const SKILL_MD =
+  typeof __WORKBOARD_SKILL_MD__ !== "undefined" ? __WORKBOARD_SKILL_MD__ : "";
+const CLAUDE_SNIPPET =
+  typeof __WORKBOARD_CLAUDE_SNIPPET__ !== "undefined" ? __WORKBOARD_CLAUDE_SNIPPET__ : "";
 
 function loadConfig(): Config {
   if (!existsSync(CONFIG_PATH)) {
@@ -67,6 +75,7 @@ Usage:
   workboard heartbeat [--note NOTE] [--claim ID]
   workboard release [claim-id|current] [--org slug]
   workboard link-repo [owner/name] [--org slug]
+  workboard init [--claude]    # install Cursor skill (+ optional CLAUDE.md snippet)
   workboard whoami
 
 Env:
@@ -541,6 +550,42 @@ async function whoami() {
   console.log("Team for a repo is chosen from git remote when linked.");
 }
 
+async function init(args: string[]) {
+  if (!SKILL_MD || !CLAUDE_SNIPPET) {
+    die("This build is missing embedded skill assets. Reinstall workboard-cli.");
+  }
+
+  const cwd = process.cwd();
+  const skillDir = join(cwd, ".cursor", "skills", "workboard");
+  const skillPath = join(skillDir, "SKILL.md");
+  mkdirSync(skillDir, { recursive: true });
+  writeFileSync(skillPath, SKILL_MD.endsWith("\n") ? SKILL_MD : `${SKILL_MD}\n`);
+  console.log(`Wrote ${skillPath}`);
+
+  const withClaude = hasFlag(args, "--claude") || hasFlag(args, "--claude-md");
+  if (withClaude) {
+    const claudePath = join(cwd, "CLAUDE.md");
+    const marker = "## Workboard (required before coding)";
+    const block = CLAUDE_SNIPPET.trim() + "\n";
+    if (existsSync(claudePath)) {
+      const existing = readFileSync(claudePath, "utf8");
+      if (existing.includes(marker)) {
+        console.log(`CLAUDE.md already has a Workboard section — left unchanged.`);
+      } else {
+        const sep = existing.endsWith("\n") || existing.length === 0 ? "\n" : "\n\n";
+        writeFileSync(claudePath, `${existing}${sep}${block}`);
+        console.log(`Appended Workboard section to ${claudePath}`);
+      }
+    } else {
+      writeFileSync(claudePath, `${block}\n`);
+      console.log(`Created ${claudePath}`);
+    }
+  } else {
+    console.log("Tip: add agent instructions with  workboard init --claude");
+    console.log("Or paste templates/CLAUDE.workboard.md from the Workboard repo.");
+  }
+}
+
 const [cmd, ...rest] = process.argv.slice(2);
 if (!cmd || cmd === "-h" || cmd === "--help") usage();
 
@@ -563,6 +608,9 @@ try {
       break;
     case "link-repo":
       await linkRepo(rest);
+      break;
+    case "init":
+      await init(rest);
       break;
     case "whoami":
       await whoami();

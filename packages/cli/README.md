@@ -10,6 +10,11 @@ npm install -g workboard-cli
 npx workboard-cli --help
 ```
 
+```bash
+workboard init           # Cursor skill → .cursor/skills/workboard/SKILL.md
+workboard init --claude  # also create/append CLAUDE.md instructions
+```
+
 Default API: `https://repo-org-production.up.railway.app`  
 Override: `WORKBOARD_API_URL=…`
 
