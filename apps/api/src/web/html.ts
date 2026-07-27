@@ -444,7 +444,23 @@ code, .mono {
   font-size: 0.84rem;
   overflow-x: auto;
   white-space: nowrap;
+  cursor: pointer;
+  position: relative;
 }
+
+.cmd:hover { border-color: var(--ink); }
+.cmd:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.cmd.copied { background: var(--highlight); }
+.cmd::after {
+  content: "click to copy";
+  float: right;
+  margin-left: 12px;
+  font-family: var(--font);
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.cmd.copied::after { content: "copied"; color: var(--ink); font-weight: 700; }
 
 .focus-card { margin-top: 24px; }
 
@@ -522,6 +538,51 @@ export function layout(
   <div class="site">
     <main class="${mainClass}">${body}</main>
   </div>
+  <script>
+  (function () {
+    function copyText(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+      }
+      return new Promise(function (resolve, reject) {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand("copy") ? resolve() : reject(new Error("copy failed"));
+        } catch (err) {
+          reject(err);
+        } finally {
+          document.body.removeChild(ta);
+        }
+      });
+    }
+    document.querySelectorAll("code.cmd").forEach(function (el) {
+      el.setAttribute("role", "button");
+      el.setAttribute("tabindex", "0");
+      el.setAttribute("title", "Click to copy");
+      function go() {
+        var text = (el.textContent || "").trim();
+        if (!text) return;
+        copyText(text).then(function () {
+          el.classList.add("copied");
+          window.setTimeout(function () { el.classList.remove("copied"); }, 1200);
+        }).catch(function () { /* ignore */ });
+      }
+      el.addEventListener("click", go);
+      el.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          go();
+        }
+      });
+    });
+  })();
+  </script>
 </body>
 </html>`;
 }
