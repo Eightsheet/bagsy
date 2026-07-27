@@ -22,7 +22,6 @@ import {
 import { db } from "../db/client.js";
 import {
   apiTokens,
-  claims,
   deviceCodes,
   linkedRepos,
   memberships,
@@ -31,7 +30,20 @@ import {
 } from "../db/schema.js";
 import { generateApiToken, generateDeviceCodes, newId } from "../lib/crypto.js";
 import { appUrl, workosConfigured } from "../lib/env.js";
-import { layout, escapeHtml } from "../web/html.js";
+import {
+  chooseOrgPage,
+  landingPage,
+  loginPage,
+  noOrgPage,
+} from "../web/pages/auth.js";
+import {
+  deviceApprovePage,
+  deviceApprovedPage,
+  deviceMissingOrgPage,
+  deviceNoOrgPage,
+  devicePickOrgPage,
+} from "../web/pages/device.js";
+import { setupPage } from "../web/pages/setup.js";
 
 export const webRoutes = new Hono();
 
@@ -93,126 +105,21 @@ webRoutes.get("/", async (c) => {
   const user = c.get("sessionUser");
   const org = c.get("sessionOrg");
   if (!user) {
-    return c.html(
-      layout(
-        "Workboard",
-        `
-        <section class="hero">
-          <p class="brand">repo-org</p>
-          <h1>Workboard</h1>
-          <p class="lede">Claim what your agent is working on so teammates don't double up.</p>
-          <p><a class="btn" href="/login">Sign in with WorkOS</a></p>
-        </section>
-      `,
-      ),
-    );
+    return c.html(landingPage());
   }
 
   const memberOrgs = await listLocalOrgsForUser(user.id);
-
   const repos = org
     ? await db.select().from(linkedRepos).where(eq(linkedRepos.orgId, org.id))
     : [];
 
-  const activeClaims = org
-    ? await db
-        .select({
-          claim: claims,
-          email: users.email,
-          name: users.name,
-        })
-        .from(claims)
-        .innerJoin(users, eq(claims.userId, users.id))
-        .where(and(eq(claims.orgId, org.id), eq(claims.status, "active")))
-    : [];
-
   return c.html(
-    layout(
-      "Dashboard",
-      `
-      <header class="top">
-        <div>
-          <p class="brand">repo-org / workboard</p>
-          <p class="muted">${escapeHtml(user.email ?? user.name ?? user.id)}</p>
-        </div>
-        <form method="post" action="/logout"><button type="submit">Log out</button></form>
-      </header>
-
-      <section>
-        <h2>Organization</h2>
-        <p class="muted">Synced from WorkOS. CLI: <code>workboard login</code></p>
-        ${
-          org
-            ? `<p>Active: <strong>${escapeHtml(org.name)}</strong> <code>${escapeHtml(org.slug)}</code></p>`
-            : `<p class="warn">Pick a WorkOS organization${memberOrgs.length ? "" : " — none found on your WorkOS user yet"}.</p>`
-        }
-        <ul>
-          ${memberOrgs
-            .map(
-              (o) => `
-            <li>
-              ${escapeHtml(o.name)} (<code>${escapeHtml(o.slug)}</code>)
-              ${o.workosOrgId ? `<span class="muted">· WorkOS</span>` : ""}
-              <form class="inline" method="post" action="/orgs/${escapeHtml(o.slug)}/use">
-                <button type="submit">Use</button>
-              </form>
-            </li>`,
-            )
-            .join("")}
-        </ul>
-        <form method="post" action="/orgs/sync" class="inline">
-          <button type="submit">Refresh from WorkOS</button>
-        </form>
-      </section>
-
-      ${
-        org
-          ? `
-      <section>
-        <h2>Linked repos</h2>
-        <ul>
-          ${
-            repos.length
-              ? repos
-                  .map(
-                    (r) =>
-                      `<li><code>${escapeHtml(r.repo)}</code>${r.verifiedAt ? " · verified" : " · unverified"}</li>`,
-                  )
-                  .join("")
-              : "<li class='muted'>None yet — link one, or run <code>workboard link-repo</code></li>"
-          }
-        </ul>
-        <form method="post" action="/repos" class="stack">
-          <label>owner/name <input name="repo" required placeholder="acme/app" /></label>
-          <button type="submit">Link repo</button>
-        </form>
-      </section>
-
-      <section>
-        <h2>Active claims</h2>
-        <ul>
-          ${
-            activeClaims.length
-              ? activeClaims
-                  .map(
-                    (r) => `
-            <li>
-              <strong>${escapeHtml(r.claim.title)}</strong>
-              on <code>${escapeHtml(r.claim.repo)}</code>
-              by ${escapeHtml(r.name ?? r.email ?? "user")}
-              <div class="muted">${escapeHtml((r.claim.files ?? []).join(", ") || "no files")}</div>
-            </li>`,
-                  )
-                  .join("")
-              : "<li class='muted'>No active claims</li>"
-          }
-        </ul>
-      </section>
-      `
-          : ""
-      }
-    `,
-    ),
+    setupPage({
+      user,
+      org,
+      orgs: memberOrgs,
+      repos,
+    }),
   );
 });
 
@@ -221,19 +128,7 @@ webRoutes.get("/login", (c) => {
   const state = next ? `next:${next}` : undefined;
   const workosUrl = getAuthKitUrl(`${appUrl()}/auth/callback`, { state });
   if (!workosUrl) {
-    return c.html(
-      layout(
-        "Sign in",
-        `
-        <section class="hero">
-          <p class="brand">repo-org</p>
-          <h1>Sign in unavailable</h1>
-          <p class="lede">WorkOS AuthKit is not configured. Set <code>WORKOS_API_KEY</code> and <code>WORKOS_CLIENT_ID</code>.</p>
-        </section>
-      `,
-      ),
-      503,
-    );
+    return c.html(loginPage({ workosUrl: null }), 503);
   }
 
   // Prefer immediate redirect for CLI/device flows
@@ -241,19 +136,7 @@ webRoutes.get("/login", (c) => {
     return c.redirect(workosUrl);
   }
 
-  return c.html(
-    layout(
-      "Sign in",
-      `
-      <section class="hero">
-        <p class="brand">repo-org</p>
-        <h1>Sign in</h1>
-        <p class="lede">Continue with WorkOS AuthKit. Your WorkOS organizations sync automatically.</p>
-        <p><a class="btn" href="${escapeHtml(workosUrl)}">Continue with WorkOS</a></p>
-      </section>
-    `,
-    ),
-  );
+  return c.html(loginPage({ workosUrl }));
 });
 
 webRoutes.get("/auth/callback", async (c) => {
@@ -275,30 +158,11 @@ webRoutes.get("/auth/callback", async (c) => {
         (err as { rawData?: { organizations?: Array<{ id: string; name: string }> } }).rawData
           ?.organizations ?? [];
       return c.html(
-        layout(
-          "Choose organization",
-          `
-          <section>
-            <h1>Choose organization</h1>
-            <p class="muted">You belong to more than one WorkOS organization.</p>
-            <ul>
-              ${orgs
-                .map(
-                  (o) => `
-                <li>
-                  <form method="post" action="/auth/select-org">
-                    <input type="hidden" name="organization_id" value="${escapeHtml(o.id)}" />
-                    <input type="hidden" name="pending_token" value="${escapeHtml(token)}" />
-                    <input type="hidden" name="state" value="${escapeHtml(state)}" />
-                    <button type="submit">${escapeHtml(o.name)}</button>
-                  </form>
-                </li>`,
-                )
-                .join("")}
-            </ul>
-          </section>
-        `,
-        ),
+        chooseOrgPage({
+          orgs,
+          pendingToken: token,
+          state,
+        }),
       );
     }
     console.error(err);
@@ -356,19 +220,7 @@ async function finishAuth(
     return c.redirect("/?pick=1");
   }
   if (!selected && synced.length === 0) {
-    return c.html(
-      layout(
-        "No organization",
-        `
-        <section>
-          <h1>No WorkOS organization</h1>
-          <p class="lede">Create or join an organization in the WorkOS Dashboard, then click refresh.</p>
-          <form method="post" action="/orgs/sync"><button type="submit">Refresh from WorkOS</button></form>
-          <p><a href="/">Dashboard</a></p>
-        </section>
-      `,
-      ),
-    );
+    return c.html(noOrgPage());
   }
   return c.redirect("/");
 }
@@ -397,9 +249,8 @@ webRoutes.post("/orgs/sync", requireSession, async (c) => {
   return c.redirect("/");
 });
 
-webRoutes.post("/orgs/:slug/use", requireSession, async (c) => {
+async function switchOrg(c: Context, slug: string) {
   const user = c.get("sessionUser")!;
-  const slug = c.req.param("slug") as string;
   const org = (await db.select().from(organizations).where(eq(organizations.slug, slug)).limit(1))[0];
   if (!org) return c.text("Org not found", 404);
   const memberRows = await db
@@ -411,6 +262,18 @@ webRoutes.post("/orgs/:slug/use", requireSession, async (c) => {
   const sessionId = await createSession(user.id, org.id);
   setSessionCookie(c, sessionId);
   return c.redirect("/");
+}
+
+webRoutes.post("/orgs/use", requireSession, async (c) => {
+  const body = await c.req.parseBody();
+  const slug = String(body.slug ?? "");
+  if (!slug) return c.text("Missing slug", 400);
+  return switchOrg(c, slug);
+});
+
+webRoutes.post("/orgs/:slug/use", requireSession, async (c) => {
+  const slug = c.req.param("slug") as string;
+  return switchOrg(c, slug);
 });
 
 webRoutes.post("/repos", requireSession, async (c) => {
@@ -513,38 +376,9 @@ webRoutes.get("/device", async (c) => {
         setSessionCookie(c, sessionId);
         org = { id: selected.id, slug: selected.slug, name: selected.name };
       } else if (synced.length > 1) {
-        return c.html(
-          layout(
-            "Authorize CLI",
-            `
-            <section>
-              <h1>Authorize CLI</h1>
-              <p>Pick the WorkOS organization for this CLI session:</p>
-              <ul>
-                ${synced
-                  .map(
-                    (o) => `
-                  <li>
-                    <form method="post" action="/device">
-                      <input type="hidden" name="user_code" value="${escapeHtml(userCode)}" />
-                      <input type="hidden" name="org_id" value="${escapeHtml(o.id)}" />
-                      <button type="submit">${escapeHtml(o.name)}</button>
-                    </form>
-                  </li>`,
-                  )
-                  .join("")}
-              </ul>
-            </section>
-          `,
-          ),
-        );
+        return c.html(devicePickOrgPage({ userCode, orgs: synced }));
       } else {
-        return c.html(
-          layout(
-            "Authorize CLI",
-            `<section><h1>No WorkOS organization</h1><p class="warn">Join/create an org in WorkOS, then retry <code>workboard login</code>.</p></section>`,
-          ),
-        );
+        return c.html(deviceNoOrgPage());
       }
     }
   }
@@ -557,28 +391,20 @@ webRoutes.get("/device", async (c) => {
     });
     if (approved.ok) {
       return c.html(
-        layout(
-          "Approved",
-          `<section><h1>CLI approved</h1><p>Signed in as ${escapeHtml(user.email ?? user.id)} · <strong>${escapeHtml(org.name)}</strong></p><p>You can close this tab and return to the terminal.</p></section>`,
-        ),
+        deviceApprovedPage({
+          email: user.email,
+          orgName: org.name,
+        }),
       );
     }
   }
 
   return c.html(
-    layout(
-      "Authorize CLI",
-      `
-      <section>
-        <h1>Authorize CLI</h1>
-        <p>Signed in as ${escapeHtml(user.email ?? user.id)}${org ? ` · <strong>${escapeHtml(org.name)}</strong>` : ""}</p>
-        <form method="post" action="/device" class="stack">
-          <input type="hidden" name="user_code" value="${escapeHtml(userCode)}" />
-          <button type="submit">Approve terminal login</button>
-        </form>
-      </section>
-    `,
-    ),
+    deviceApprovePage({
+      email: user.email,
+      orgName: org?.name,
+      userCode,
+    }),
   );
 });
 
@@ -606,12 +432,7 @@ webRoutes.post("/device", requireSession, async (c) => {
   }
 
   if (!org) {
-    return c.html(
-      layout(
-        "Authorize CLI",
-        `<p class="warn">No organization selected.</p><p><a href="/device?user_code=${encodeURIComponent(userCode)}">Retry</a></p>`,
-      ),
-    );
+    return c.html(deviceMissingOrgPage({ userCode }));
   }
 
   const approved = await approveDeviceLogin({
@@ -622,10 +443,10 @@ webRoutes.post("/device", requireSession, async (c) => {
   if (!approved.ok) return c.text(approved.error, approved.status);
 
   return c.html(
-    layout(
-      "Approved",
-      `<section><h1>CLI approved</h1><p>You can close this tab and return to the terminal.</p></section>`,
-    ),
+    deviceApprovedPage({
+      email: user.email,
+      orgName: org.name,
+    }),
   );
 });
 
