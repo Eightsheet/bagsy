@@ -2,6 +2,18 @@
 
 Agent coordination service: claim what you're working on in a shared repo so other agents/humans don't duplicate work.
 
+## Try it (hosted, free)
+
+A public instance runs on Railway — no self-hosting needed to try:
+
+**https://repo-org-production.up.railway.app**
+
+1. Install the CLI (below)
+2. `workboard login` — opens AuthKit in the browser
+3. Create a team, invite people, link a repo, then `workboard claim …`
+
+The CLI talks to that URL by default. Override only if you run your own API: `WORKBOARD_API_URL=…`
+
 ## Model
 
 - **Team** (WorkOS organization) = people who share a claim board. Membership is the access gate.
@@ -34,9 +46,6 @@ What gets written:
 | Claude Code | `.claude/skills/workboard/SKILL.md` | `CLAUDE.md` |
 | Codex | `.agents/skills/workboard/SKILL.md` | `AGENTS.md` |
 | Cursor | `.cursor/skills/workboard/SKILL.md` | — |
-
-Default API (hosted): `https://repo-org-production.up.railway.app`  
-Override only for a self-hosted API: `WORKBOARD_API_URL=…`
 
 For agents: see [AGENTS.md](./AGENTS.md), [templates/CLAUDE.workboard.md](./templates/CLAUDE.workboard.md), [templates/AGENTS.workboard.md](./templates/AGENTS.workboard.md).
 

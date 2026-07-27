@@ -23,7 +23,8 @@ workboard init --docs          # opt-in: also CLAUDE.md / AGENTS.md
 | Codex | `.agents/skills/workboard/` | `AGENTS.md` |
 | Cursor | `.cursor/skills/workboard/` | — |
 
-Default API (hosted): `https://repo-org-production.up.railway.app`  
+Talks to the free hosted API by default:  
+`https://repo-org-production.up.railway.app`  
 Override only for a self-hosted API: `WORKBOARD_API_URL=…`
 
 ## Quick start
