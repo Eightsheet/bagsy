@@ -180,6 +180,25 @@ h2 {
 }
 .check input { width: auto; margin: 0; }
 
+.quiet-details {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.quiet-details summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.88rem;
+  list-style: none;
+}
+.quiet-details summary::-webkit-details-marker { display: none; }
+.quiet-details summary::before {
+  content: "+ ";
+  font-weight: 600;
+}
+.quiet-details[open] summary::before { content: "– "; }
+.quiet-details summary:hover { background: var(--highlight); color: var(--ink); }
+
 .hero {
   min-height: calc(100vh - 56px);
   display: flex;

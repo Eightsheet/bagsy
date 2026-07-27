@@ -16,6 +16,77 @@ export function setupPage(opts: {
     ${error ? `<p class="warn">${escapeHtml(error)}</p>` : ""}
   `;
 
+  const inviteExisting = org
+    ? `
+    <form method="post" action="/orgs/invite" class="stack" style="margin-top:14px">
+      <h3 style="margin:0;font:inherit;font-weight:600">Invite to ${escapeHtml(org.name)}</h3>
+      <p class="muted">Teammates join your current organization.</p>
+      <label>
+        Email
+        <input name="email" type="email" required placeholder="teammate@company.com" autocomplete="email" />
+      </label>
+      <div class="row">
+        <button type="submit">Send invite</button>
+      </div>
+    </form>
+
+    <details class="quiet-details">
+      <summary>Create a new organization</summary>
+      <form method="post" action="/orgs/create" class="stack" style="margin-top:12px">
+        <label>
+          Name
+          <input name="name" placeholder="${escapeHtml(defaultOrgName)}" />
+        </label>
+        <label>
+          Invite email <span class="muted">(optional)</span>
+          <input name="invite_email" type="email" placeholder="teammate@company.com" />
+        </label>
+        <div class="row">
+          <button type="submit" class="ghost">Create organization</button>
+        </div>
+      </form>
+    </details>
+  `
+    : "";
+
+  const noActiveButHasOrgs =
+    !org && orgs.length > 0
+      ? `<p class="warn">Pick an organization in the header to invite people into it.</p>
+         <details class="quiet-details">
+           <summary>Or create a new organization</summary>
+           <form method="post" action="/orgs/create" class="stack" style="margin-top:12px">
+             <label>
+               Name
+               <input name="name" placeholder="${escapeHtml(defaultOrgName)}" value="${escapeHtml(defaultOrgName)}" />
+             </label>
+             <div class="row">
+               <button type="submit" class="ghost">Create organization</button>
+             </div>
+           </form>
+         </details>`
+      : "";
+
+  const firstOrg =
+    !org && orgs.length === 0
+      ? `
+    <form method="post" action="/orgs/create" class="stack" style="margin-top:14px">
+      <h3 style="margin:0;font:inherit;font-weight:600">Create your organization</h3>
+      <p class="muted">Name a team, then invite people. You’re admin automatically.</p>
+      <label>
+        Name
+        <input name="name" placeholder="${escapeHtml(defaultOrgName)}" value="${escapeHtml(defaultOrgName)}" />
+      </label>
+      <label>
+        Invite email <span class="muted">(optional)</span>
+        <input name="invite_email" type="email" placeholder="teammate@company.com" />
+      </label>
+      <div class="row">
+        <button type="submit">Create organization</button>
+      </div>
+    </form>
+  `
+      : "";
+
   const orgPanel = `
     <section class="panel">
       <div class="panel-head">
@@ -24,53 +95,15 @@ export function setupPage(opts: {
           <button type="submit" class="ghost">Refresh from WorkOS</button>
         </form>
       </div>
-      <p class="panel-desc">Invite teammates from Workboard. We’ll create a WorkOS org when you need one — no Dashboard detour.</p>
+      <p class="panel-desc">Switch orgs anytime from the header — no re-login. Invites go to your active org by default.</p>
       ${
         org
           ? `<p>Active: <strong>${escapeHtml(org.name)}</strong> <span class="mono muted">${escapeHtml(org.slug)}</span></p>`
-          : `<p class="warn">${orgs.length ? "Pick an organization in the header." : "No org yet — create one below or invite someone to spin one up."}</p>`
+          : ""
       }
-
-      <div class="split" style="margin-top:16px">
-        <form method="post" action="/orgs/create" class="stack">
-          <h3 style="margin:0;font:inherit;font-weight:600">Create organization</h3>
-          <label>
-            Name
-            <input name="name" placeholder="${escapeHtml(defaultOrgName)}" value="${escapeHtml(defaultOrgName)}" />
-          </label>
-          <div class="row">
-            <button type="submit">Create</button>
-          </div>
-        </form>
-
-        <form method="post" action="/orgs/invite" class="stack">
-          <h3 style="margin:0;font:inherit;font-weight:600">Invite teammate</h3>
-          <label>
-            Email
-            <input name="email" type="email" required placeholder="teammate@company.com" />
-          </label>
-          ${
-            org
-              ? `<p class="muted">Invites into <strong>${escapeHtml(org.name)}</strong>. Check below to create a new org instead.</p>
-                 <label class="check">
-                   <input type="checkbox" name="create_new" value="1" />
-                   Create a new organization for this invite
-                 </label>
-                 <label>
-                   New org name
-                   <input name="name" placeholder="${escapeHtml(defaultOrgName)}" />
-                 </label>`
-              : `<label>
-                   Organization name
-                   <input name="name" placeholder="${escapeHtml(defaultOrgName)}" value="${escapeHtml(defaultOrgName)}" />
-                 </label>
-                 <p class="muted">No active org — inviting will create one and make you admin.</p>`
-          }
-          <div class="row">
-            <button type="submit">Send invite</button>
-          </div>
-        </form>
-      </div>
+      ${inviteExisting}
+      ${noActiveButHasOrgs}
+      ${firstOrg}
     </section>
   `;
 

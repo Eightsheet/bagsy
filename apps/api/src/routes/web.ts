@@ -309,16 +309,22 @@ webRoutes.post("/orgs/invite", requireSession, async (c) => {
     return c.redirect(`/?err=${encodeURIComponent("Valid invite email required")}`);
   }
 
-  const createNew = String(body.create_new ?? "") === "1" || !c.get("sessionOrg");
+  const active = c.get("sessionOrg");
+  const createNew = String(body.create_new ?? "") === "1";
+  if (!createNew && !active) {
+    return c.redirect(
+      `/?err=${encodeURIComponent("Pick an organization in the header, then invite")}`,
+    );
+  }
+
   const name =
     String(body.name ?? "").trim() || defaultOrgName(user.name, user.email);
 
   try {
     let workosOrgId: string;
     let orgName: string;
-    let localOrgId: string;
 
-    if (createNew) {
+    if (createNew || !active) {
       const created = await createWorkOSOrganizationAsAdmin({
         name,
         localUserId: user.id,
@@ -326,11 +332,9 @@ webRoutes.post("/orgs/invite", requireSession, async (c) => {
       });
       workosOrgId = created.workosOrgId;
       orgName = created.name;
-      localOrgId = created.id;
       const sessionId = await createSession(user.id, created.id);
       setSessionCookie(c, sessionId);
     } else {
-      const active = c.get("sessionOrg")!;
       const orgRow = (
         await db.select().from(organizations).where(eq(organizations.id, active.id)).limit(1)
       )[0];
@@ -341,7 +345,6 @@ webRoutes.post("/orgs/invite", requireSession, async (c) => {
       }
       workosOrgId = orgRow.workosOrgId;
       orgName = orgRow.name;
-      localOrgId = orgRow.id;
     }
 
     await sendWorkOSOrgInvitation({
@@ -350,7 +353,6 @@ webRoutes.post("/orgs/invite", requireSession, async (c) => {
       inviterWorkosUserId: local.workosUserId,
     });
 
-    void localOrgId;
     const msg = createNew
       ? `Created “${orgName}” and invited ${email}`
       : `Invited ${email} to “${orgName}”`;
