@@ -10,8 +10,11 @@ import {
   setSessionCookie,
 } from "../auth/middleware.js";
 import {
+  createWorkOSOrganizationAsAdmin,
+  defaultOrgName,
   listLocalOrgsForUser,
   pickDefaultOrg,
+  sendWorkOSOrgInvitation,
   syncWorkOSOrganizations,
 } from "../auth/orgs.js";
 import {
@@ -119,6 +122,9 @@ webRoutes.get("/", async (c) => {
       org,
       orgs: memberOrgs,
       repos,
+      flash: c.req.query("ok") ? decodeURIComponent(c.req.query("ok")!) : null,
+      error: c.req.query("err") ? decodeURIComponent(c.req.query("err")!) : null,
+      defaultOrgName: defaultOrgName(user.name, user.email),
     }),
   );
 });
@@ -220,7 +226,7 @@ async function finishAuth(
     return c.redirect("/?pick=1");
   }
   if (!selected && synced.length === 0) {
-    return c.html(noOrgPage());
+    return c.html(noOrgPage({ defaultOrgName: defaultOrgName(userRow.name, userRow.email) }));
   }
   return c.redirect("/");
 }
@@ -247,6 +253,114 @@ webRoutes.post("/orgs/sync", requireSession, async (c) => {
   const sessionId = await createSession(user.id, selected?.id ?? null);
   setSessionCookie(c, sessionId);
   return c.redirect("/");
+});
+
+webRoutes.post("/orgs/create", requireSession, async (c) => {
+  const user = c.get("sessionUser")!;
+  const local = (await db.select().from(users).where(eq(users.id, user.id)).limit(1))[0];
+  if (!local?.workosUserId) {
+    return c.redirect(`/?err=${encodeURIComponent("No WorkOS user linked")}`);
+  }
+
+  const body = await c.req.parseBody();
+  const name =
+    String(body.name ?? "").trim() || defaultOrgName(user.name, user.email);
+  const inviteEmail = String(body.invite_email ?? "").trim();
+
+  try {
+    const created = await createWorkOSOrganizationAsAdmin({
+      name,
+      localUserId: user.id,
+      workosUserId: local.workosUserId,
+    });
+
+    if (inviteEmail) {
+      await sendWorkOSOrgInvitation({
+        email: inviteEmail,
+        workosOrgId: created.workosOrgId,
+        inviterWorkosUserId: local.workosUserId,
+      });
+    }
+
+    const sessionId = await createSession(user.id, created.id);
+    setSessionCookie(c, sessionId);
+    const msg = inviteEmail
+      ? `Created “${created.name}” and invited ${inviteEmail}`
+      : `Created “${created.name}”`;
+    return c.redirect(`/?ok=${encodeURIComponent(msg)}`);
+  } catch (err) {
+    console.error(err);
+    return c.redirect(
+      `/?err=${encodeURIComponent(err instanceof Error ? err.message : "Create failed")}`,
+    );
+  }
+});
+
+webRoutes.post("/orgs/invite", requireSession, async (c) => {
+  const user = c.get("sessionUser")!;
+  const local = (await db.select().from(users).where(eq(users.id, user.id)).limit(1))[0];
+  if (!local?.workosUserId) {
+    return c.redirect(`/?err=${encodeURIComponent("No WorkOS user linked")}`);
+  }
+
+  const body = await c.req.parseBody();
+  const email = String(body.email ?? "").trim();
+  if (!email || !email.includes("@")) {
+    return c.redirect(`/?err=${encodeURIComponent("Valid invite email required")}`);
+  }
+
+  const createNew = String(body.create_new ?? "") === "1" || !c.get("sessionOrg");
+  const name =
+    String(body.name ?? "").trim() || defaultOrgName(user.name, user.email);
+
+  try {
+    let workosOrgId: string;
+    let orgName: string;
+    let localOrgId: string;
+
+    if (createNew) {
+      const created = await createWorkOSOrganizationAsAdmin({
+        name,
+        localUserId: user.id,
+        workosUserId: local.workosUserId,
+      });
+      workosOrgId = created.workosOrgId;
+      orgName = created.name;
+      localOrgId = created.id;
+      const sessionId = await createSession(user.id, created.id);
+      setSessionCookie(c, sessionId);
+    } else {
+      const active = c.get("sessionOrg")!;
+      const orgRow = (
+        await db.select().from(organizations).where(eq(organizations.id, active.id)).limit(1)
+      )[0];
+      if (!orgRow?.workosOrgId) {
+        return c.redirect(
+          `/?err=${encodeURIComponent("Active org is not linked to WorkOS")}`,
+        );
+      }
+      workosOrgId = orgRow.workosOrgId;
+      orgName = orgRow.name;
+      localOrgId = orgRow.id;
+    }
+
+    await sendWorkOSOrgInvitation({
+      email,
+      workosOrgId,
+      inviterWorkosUserId: local.workosUserId,
+    });
+
+    void localOrgId;
+    const msg = createNew
+      ? `Created “${orgName}” and invited ${email}`
+      : `Invited ${email} to “${orgName}”`;
+    return c.redirect(`/?ok=${encodeURIComponent(msg)}`);
+  } catch (err) {
+    console.error(err);
+    return c.redirect(
+      `/?err=${encodeURIComponent(err instanceof Error ? err.message : "Invite failed")}`,
+    );
+  }
 });
 
 async function switchOrg(c: Context, slug: string) {

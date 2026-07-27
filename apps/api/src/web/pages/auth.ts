@@ -108,19 +108,30 @@ export function chooseOrgPage(opts: {
   );
 }
 
-export function noOrgPage(): string {
+export function noOrgPage(opts?: { defaultOrgName?: string }): string {
+  const defaultName = opts?.defaultOrgName ?? "My team's team";
   return layout(
-    "No organization",
+    "Create organization",
     `
     <section class="focus-card">
       <header class="page-header">
-        <h1>No WorkOS organization</h1>
-        <p class="meta">Create or join one, then refresh</p>
+        <h1>Create your organization</h1>
+        <p class="meta">No WorkOS Dashboard needed</p>
       </header>
-      <p class="lede">Open the WorkOS Dashboard to create or join an organization, then sync it here.</p>
-      <form method="post" action="/orgs/sync" style="margin-top:14px" class="row">
-        <button type="submit">Refresh from WorkOS</button>
-        <a class="btn btn-secondary" href="/">Back</a>
+      <p class="lede">Name a team and optionally invite someone. Workboard creates the WorkOS org and makes you admin.</p>
+      <form method="post" action="/orgs/create" class="stack" style="margin-top:14px">
+        <label>
+          Organization name
+          <input name="name" placeholder="${escapeHtml(defaultName)}" value="${escapeHtml(defaultName)}" />
+        </label>
+        <label>
+          Invite email <span class="muted">(optional)</span>
+          <input name="invite_email" type="email" placeholder="teammate@company.com" />
+        </label>
+        <div class="row">
+          <button type="submit">Create organization</button>
+          <a class="btn btn-secondary" href="/">Skip for now</a>
+        </div>
       </form>
     </section>
   `,

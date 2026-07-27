@@ -163,6 +163,22 @@ h2 {
 
 .muted { color: var(--muted); }
 .warn { color: var(--ink); background: var(--highlight); padding: 2px 4px; }
+.ok { color: var(--ink); border: 1px solid var(--ink); padding: 8px 10px; margin: 0 0 14px; }
+.split {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 640px) {
+  .split { grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+.check input { width: auto; margin: 0; }
 
 .hero {
   min-height: calc(100vh - 56px);

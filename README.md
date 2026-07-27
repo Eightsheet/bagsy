@@ -37,7 +37,7 @@ pnpm --filter @repo-org/cli exec node dist/index.js --help
 2. `workboard link-repo` (once per repo)  
 3. `workboard status` / `workboard claim -t "…" -f src/x.ts`
 
-WorkOS organizations are the source of truth — no separate “create org” step in Workboard.
+WorkOS organizations are the source of truth. Create an org or invite a teammate from the web UI — Workboard creates the WorkOS org and makes you admin (no Dashboard org setup required).
 
 Add this redirect URI in the WorkOS Dashboard → Redirects:
 

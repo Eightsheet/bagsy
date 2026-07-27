@@ -20,7 +20,7 @@ Shareframe: [Workboard Roadmap — Org create & invite](https://shareframe-worke
 
 ### R1 — Invite creates WorkOS org
 
-Status: **Planned** · Claim ref: `roadmap:R1-org-invite`
+Status: **Done** · Claim ref: `roadmap:R1-org-invite`
 
 Product behavior (happy path):
 
@@ -35,18 +35,17 @@ Product behavior (happy path):
 
 #### Acceptance criteria
 
-- User can set org display name before or during the first invite.
-- Creating the invite without an existing WorkOS org creates one; inviter ends as admin.
-- Invitee receives WorkOS invite email and can join; subsequent logins sync the membership.
-- If user already has a WorkOS org selected, invite adds to that org (no duplicate create) unless they explicitly create another.
-- README / “no org → go to Dashboard” dead-end is replaced by this create+invite path.
+- [x] User can set org display name before or during the first invite.
+- [x] Creating the invite without an existing WorkOS org creates one; inviter ends as admin.
+- [x] Invitee receives WorkOS invite email and can join; subsequent logins sync the membership.
+- [x] If user already has a WorkOS org selected, invite adds to that org (no duplicate create) unless they explicitly create another.
+- [x] README / “no org → go to Dashboard” dead-end is replaced by this create+invite path.
 
-#### Open questions
+#### Resolved defaults
 
-- Create org lazily on first invite only, or also via an explicit “Create organization” control?
-- Default name when user skips naming (e.g. “{user}’s org”) — allowed or required field?
-- Personal solo boards without a WorkOS org: keep soft-allow, or force org after this ships?
-- WorkOS invitation vs magic-link invite UX details in AuthKit.
+- Explicit **Create organization** control **and** invite-can-create when no org / “create new” checked.
+- Empty name → `"{name|email}'s team"`.
+- Solo without org still allowed; UI offers create+invite instead of Dashboard dead-end.
 
 ## Out of scope (for now)
 

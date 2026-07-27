@@ -39,9 +39,10 @@ export function deviceNoOrgPage(): string {
     <section class="focus-card">
       <header class="page-header">
         <h1>No organization</h1>
-        <p class="meta">WorkOS membership required</p>
+        <p class="meta">Create one in Workboard first</p>
       </header>
-      <p class="lede warn">Join or create an org in WorkOS, then retry <code>workboard login</code>.</p>
+      <p class="lede">Open the site, create an organization (and optionally invite a teammate), then retry <code>workboard login</code>.</p>
+      <p style="margin-top:14px"><a class="btn" href="/">Open Workboard</a></p>
     </section>
   `,
     { narrow: true },
