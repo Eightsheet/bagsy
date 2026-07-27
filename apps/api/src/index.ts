@@ -11,8 +11,9 @@ const app = new Hono();
 app.use(
   "*",
   cors({
-    origin: "*",
-    allowHeaders: ["Authorization", "Content-Type"],
+    // CLI uses Bearer tokens (no cookies). Browser UI is same-origin.
+    origin: process.env.APP_URL?.replace(/\/$/, "") || "*",
+    allowHeaders: ["Authorization", "Content-Type", "X-Workboard-Org"],
   }),
 );
 
@@ -27,7 +28,14 @@ app.onError((err, c) => {
     return err.getResponse();
   }
   console.error(err);
-  return c.json({ error: "internal_error", message: err.message }, 500);
+  const expose = process.env.NODE_ENV !== "production";
+  return c.json(
+    {
+      error: "internal_error",
+      ...(expose ? { message: err instanceof Error ? err.message : String(err) } : {}),
+    },
+    500,
+  );
 });
 
 const port = Number(process.env.PORT ?? 3000);

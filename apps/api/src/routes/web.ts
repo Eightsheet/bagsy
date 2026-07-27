@@ -313,7 +313,7 @@ webRoutes.post("/orgs/invite", requireSession, async (c) => {
   const createNew = String(body.create_new ?? "") === "1";
   if (!createNew && !active) {
     return c.redirect(
-      `/?err=${encodeURIComponent("Pick an organization in the header, then invite")}`,
+      `/?err=${encodeURIComponent("Pick a team in the header, then invite")}`,
     );
   }
 
