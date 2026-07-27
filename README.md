@@ -33,9 +33,11 @@ pnpm --filter @repo-org/cli build
 pnpm --filter @repo-org/cli exec node dist/index.js --help
 ```
 
-1. Open http://localhost:3000 → **Continue with WorkOS** → create org → link repo → create API token  
-2. `workboard login --token wb_…`  
+1. `workboard login` → browser WorkOS AuthKit (orgs sync from WorkOS)  
+2. `workboard link-repo` (once per repo)  
 3. `workboard status` / `workboard claim -t "…" -f src/x.ts`
+
+WorkOS organizations are the source of truth — no separate “create org” step in Workboard.
 
 Add this redirect URI in the WorkOS Dashboard → Redirects:
 

@@ -32,8 +32,8 @@ Before doing meaningful implementation work in a shared repo, coordinate through
 - Run `workboard status` near the start of a session that will edit code.
 - If status shows an overlap on the same files/task, do not silently proceed on the same work. Tell the user and either pick a different slice or wait.
 - Prefer `--strict` only when the user asks to hard-block overlaps.
-- If the repo is not linked (`status` exit 2), run `workboard link-repo` once (org must already exist / user logged in).
-- If not logged in, tell the user to run `workboard login` (browser device flow) or `workboard login --token …`.
+- If the repo is not linked (`status` exit 2), run `workboard link-repo` once.
+- If not logged in, run `workboard login` (opens browser → WorkOS). Do not invent a parallel org; WorkOS orgs sync automatically.
 
 ## Notes
 

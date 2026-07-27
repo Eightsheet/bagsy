@@ -42,7 +42,8 @@ function usage(): never {
   console.log(`workboard — agent coordination CLI
 
 Usage:
-  workboard login [--token TOKEN]
+  workboard login              # opens browser → WorkOS AuthKit
+  workboard login --token TOKEN
   workboard status [--repo owner/name]
   workboard claim -t TITLE [-f FILE ...] [--roadmap REF] [--branch B] [--strict] [--note NOTE]
   workboard heartbeat [--note NOTE] [--claim ID]
@@ -134,21 +135,21 @@ async function login(args: string[]) {
     return;
   }
 
-  // Device flow
+  // Device flow → browser WorkOS AuthKit
   const start = await fetch(`${cfg.apiUrl.replace(/\/$/, "")}/v1/auth/device/code`, {
     method: "POST",
   });
+  if (!start.ok) die(`Could not start login: ${start.status}`);
   const device = (await start.json()) as {
     device_code: string;
     user_code: string;
     verification_uri_complete: string;
     interval: number;
   };
-  console.log(`Open: ${device.verification_uri_complete}`);
-  console.log(`Or enter code ${device.user_code} at ${cfg.apiUrl}/device`);
+  console.log("Opening browser for WorkOS login…");
+  console.log(`If it does not open: ${device.verification_uri_complete}`);
 
-  // try open browser
-  spawnSync("bash", ["-lc", `open '${device.verification_uri_complete}' 2>/dev/null || true`]);
+  spawnSync("bash", ["-lc", `open '${device.verification_uri_complete}' 2>/dev/null || xdg-open '${device.verification_uri_complete}' 2>/dev/null || true`]);
 
   for (;;) {
     await new Promise((r) => setTimeout(r, (device.interval || 2) * 1000));

@@ -13,7 +13,10 @@ export function getWorkOS(): WorkOS | null {
   return client;
 }
 
-export function getAuthKitUrl(redirectUri: string, state?: string): string | null {
+export function getAuthKitUrl(
+  redirectUri: string,
+  opts?: { state?: string; organizationId?: string },
+): string | null {
   const workos = getWorkOS();
   const clientId = optionalEnv("WORKOS_CLIENT_ID");
   if (!workos || !clientId) return null;
@@ -22,7 +25,8 @@ export function getAuthKitUrl(redirectUri: string, state?: string): string | nul
     provider: "authkit",
     redirectUri,
     clientId,
-    state,
+    state: opts?.state,
+    organizationId: opts?.organizationId,
   });
 }
 
@@ -35,5 +39,21 @@ export async function authenticateWithCode(code: string) {
   return workos.userManagement.authenticateWithCode({
     code,
     clientId,
+  });
+}
+
+export async function authenticateWithOrganizationSelection(input: {
+  organizationId: string;
+  pendingAuthenticationToken: string;
+}) {
+  const workos = getWorkOS();
+  const clientId = optionalEnv("WORKOS_CLIENT_ID");
+  if (!workos || !clientId) {
+    throw new Error("WorkOS is not configured");
+  }
+  return workos.userManagement.authenticateWithOrganizationSelection({
+    clientId,
+    organizationId: input.organizationId,
+    pendingAuthenticationToken: input.pendingAuthenticationToken,
   });
 }
