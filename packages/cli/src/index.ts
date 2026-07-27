@@ -84,7 +84,7 @@ Usage:
   workboard whoami
 
 Env:
-  WORKBOARD_API_URL   API base (default: production Workboard URL)
+  WORKBOARD_API_URL   API base (default: https://repo-org-production.up.railway.app)
   WORKBOARD_TOKEN     API token override
 `);
   process.exit(0);
@@ -316,6 +316,7 @@ async function login(args: string[]) {
     cfg.orgSlug = me.json.org.slug;
     saveConfig(cfg);
     console.log(`Logged in as ${me.json.user.email ?? me.json.user.id} · team ${me.json.org.slug}`);
+    console.log(`API: ${cfg.apiUrl}`);
     return;
   }
 
@@ -353,6 +354,7 @@ async function login(args: string[]) {
       cfg.orgSlug = me.json.org?.slug;
       saveConfig(cfg);
       console.log(`Logged in as ${me.json.user.email ?? me.json.user.id} · team ${me.json.org.slug}`);
+      console.log(`API: ${cfg.apiUrl}`);
       console.log("Tip: day-to-day, the CLI picks your team from git remote.");
       return;
     }
@@ -545,6 +547,7 @@ async function whoami() {
   if (res.status !== 200) die(`whoami failed (${res.status}): ${JSON.stringify(res.json)}`);
   const { user, org, orgs } = res.json;
   console.log(`User: ${user.email ?? user.id}`);
+  console.log(`API: ${cfg.apiUrl}`);
   console.log(`Active team: ${org.name} (${org.slug})`);
   if (Array.isArray(orgs) && orgs.length) {
     console.log("Your teams:");

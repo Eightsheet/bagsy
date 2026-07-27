@@ -40,7 +40,7 @@ Before doing meaningful implementation work in a shared repo, coordinate through
 
 ## Notes
 
-- Install from GitHub Releases: `npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.5/workboard-cli-0.1.5.tgz`
+- Install from GitHub Releases: `npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.6/workboard-cli-0.1.6.tgz`
 - Agent wiring: `workboard init` (interactive) or `workboard init --claude-code --codex --cursor`.
 - Repo is auto-detected from `git remote origin`; team is resolved from which of your teams linked that remote.
 - Config lives in `~/.config/repo-org/config.json` (includes remembered `repoTeams` mappings).
