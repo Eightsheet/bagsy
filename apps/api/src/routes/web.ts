@@ -8,7 +8,6 @@ import {
   loadSession,
   requireSession,
   setSessionCookie,
-  upsertDevUser,
 } from "../auth/middleware.js";
 import { authenticateWithCode, getAuthKitUrl } from "../auth/workos.js";
 import { db } from "../db/client.js";
@@ -22,7 +21,7 @@ import {
   users,
 } from "../db/schema.js";
 import { generateApiToken, generateDeviceCodes, newId, slugify } from "../lib/crypto.js";
-import { appUrl, isDevAuthEnabled, workosConfigured } from "../lib/env.js";
+import { appUrl, workosConfigured } from "../lib/env.js";
 import { layout, escapeHtml } from "../web/html.js";
 
 export const webRoutes = new Hono();
@@ -207,6 +206,22 @@ webRoutes.get("/", async (c) => {
 
 webRoutes.get("/login", (c) => {
   const workosUrl = getAuthKitUrl(`${appUrl()}/auth/callback`);
+  if (!workosUrl) {
+    return c.html(
+      layout(
+        "Sign in",
+        `
+        <section class="hero">
+          <p class="brand">repo-org</p>
+          <h1>Sign in unavailable</h1>
+          <p class="lede">WorkOS AuthKit is not configured. Set <code>WORKOS_API_KEY</code> and <code>WORKOS_CLIENT_ID</code>.</p>
+        </section>
+      `,
+      ),
+      503,
+    );
+  }
+
   return c.html(
     layout(
       "Sign in",
@@ -214,37 +229,12 @@ webRoutes.get("/login", (c) => {
       <section class="hero">
         <p class="brand">repo-org</p>
         <h1>Sign in</h1>
-        ${
-          workosUrl
-            ? `<p><a class="btn" href="${escapeHtml(workosUrl)}">Continue with WorkOS AuthKit</a></p>`
-            : `<p class="muted">WorkOS is not configured.</p>`
-        }
-        ${
-          isDevAuthEnabled()
-            ? `
-          <hr />
-          <form method="post" action="/auth/dev" class="stack">
-            <label>Dev email <input name="email" type="email" value="dev@localhost" required /></label>
-            <label>Name <input name="name" value="Dev User" required /></label>
-            <button type="submit">Dev sign-in</button>
-          </form>`
-            : ""
-        }
+        <p class="lede">Continue with WorkOS AuthKit.</p>
+        <p><a class="btn" href="${escapeHtml(workosUrl)}">Continue with WorkOS</a></p>
       </section>
     `,
     ),
   );
-});
-
-webRoutes.post("/auth/dev", async (c) => {
-  if (!isDevAuthEnabled()) return c.text("Dev auth disabled", 403);
-  const body = await c.req.parseBody();
-  const email = String(body.email ?? "");
-  const name = String(body.name ?? "Dev User");
-  const user = await upsertDevUser(email, name);
-  const sessionId = await createSession(user.id, null);
-  setSessionCookie(c, sessionId);
-  return c.redirect("/");
 });
 
 webRoutes.get("/auth/callback", async (c) => {

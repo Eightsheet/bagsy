@@ -4,7 +4,6 @@ import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { db } from "../db/client.js";
 import { apiTokens, memberships, organizations, sessions, users } from "../db/schema.js";
 import { hashToken, newId } from "../lib/crypto.js";
-import { isDevAuthEnabled } from "../lib/env.js";
 
 export type AuthUser = {
   id: string;
@@ -160,26 +159,6 @@ export function setSessionCookie(c: Context, sessionId: string) {
     secure: process.env.NODE_ENV === "production",
     maxAge: 30 * 24 * 60 * 60,
   });
-}
-
-export async function upsertDevUser(email: string, name: string) {
-  if (!isDevAuthEnabled()) {
-    throw new Error("Dev auth disabled");
-  }
-  const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (existing[0]) return existing[0];
-
-  const id = newId("usr");
-  const [created] = await db
-    .insert(users)
-    .values({
-      id,
-      email,
-      name,
-      workosUserId: `dev_${id}`,
-    })
-    .returning();
-  return created!;
 }
 
 export async function ensureMembership(userId: string, orgId: string, role = "member") {

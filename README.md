@@ -6,7 +6,7 @@ Agent coordination service: claim what you're working on in a shared repo so oth
 
 - **API + Web:** Hono on Railway (`apps/api`)
 - **CLI:** `workboard` (`packages/cli`)
-- **Auth:** WorkOS AuthKit (orgs) + API tokens; `DEV_AUTH=1` for bootstrap
+- **Auth:** WorkOS AuthKit + API tokens for CLI/agents
 - **Tenancy:** Hybrid C — org-gated boards, repo as key, optional GitHub verify
 
 ## Quick start (local)
@@ -17,8 +17,8 @@ pnpm --filter @repo-org/shared build
 
 # Postgres required
 export DATABASE_URL=postgres://postgres:postgres@localhost:5432/repo_org
-export DEV_AUTH=1
-export SKIP_GITHUB_VERIFY=1
+export WORKOS_API_KEY=…
+export WORKOS_CLIENT_ID=…
 export APP_URL=http://localhost:3000
 
 pnpm --filter @repo-org/api db:generate
@@ -33,9 +33,14 @@ pnpm --filter @repo-org/cli build
 pnpm --filter @repo-org/cli exec node dist/index.js --help
 ```
 
-1. Open http://localhost:3000 → Dev sign-in → create org → link repo → create API token  
+1. Open http://localhost:3000 → **Continue with WorkOS** → create org → link repo → create API token  
 2. `workboard login --token wb_…`  
 3. `workboard status` / `workboard claim -t "…" -f src/x.ts`
+
+Add this redirect URI in the WorkOS Dashboard → Redirects:
+
+- Local: `http://localhost:3000/auth/callback`
+- Prod: `https://repo-org-production.up.railway.app/auth/callback`
 
 ## CLI
 
@@ -62,8 +67,7 @@ See [.cursor/skills/workboard/SKILL.md](.cursor/skills/workboard/SKILL.md).
 |-----|---------|
 | `DATABASE_URL` | Postgres (Railway plugin) |
 | `APP_URL` | Public URL |
-| `WORKOS_API_KEY` / `WORKOS_CLIENT_ID` | AuthKit |
-| `DEV_AUTH=1` | Email/dev login (bootstrap only) |
+| `WORKOS_API_KEY` / `WORKOS_CLIENT_ID` | AuthKit (required) |
 | `SKIP_GITHUB_VERIFY=1` | Soft-skip GitHub repo verify |
 | `GITHUB_VERIFY_TOKEN` | Optional PAT for verify |
 
