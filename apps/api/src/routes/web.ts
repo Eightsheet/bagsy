@@ -518,22 +518,9 @@ webRoutes.get("/device", async (c) => {
     }
   }
 
-  if (org && userCode) {
-    const approved = await approveDeviceLogin({
-      userId: user.id,
-      orgId: org.id,
-      userCode,
-    });
-    if (approved.ok) {
-      return c.html(
-        deviceApprovedPage({
-          email: user.email,
-          orgName: org.name,
-        }),
-      );
-    }
-  }
-
+  // Never approve on GET: an attacker could start `workboard login` themselves
+  // and phish a logged-in user into visiting the link. Approval requires the
+  // explicit POST below.
   return c.html(
     deviceApprovePage({
       email: user.email,

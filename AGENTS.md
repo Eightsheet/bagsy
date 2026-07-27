@@ -6,7 +6,8 @@ Before meaningful coding in a shared repo that uses Workboard:
 
 ```bash
 npm install -g workboard-cli
-workboard init --all      # Claude Code + Codex + Cursor skills + CLAUDE.md / AGENTS.md
+workboard init --all      # skills only (Claude Code / Codex / Cursor)
+# optional: workboard init --docs   # also append CLAUDE.md / AGENTS.md
 workboard login
 workboard status
 workboard claim -t "Short title" -f path/one.ts
