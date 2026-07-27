@@ -24,7 +24,7 @@ const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 /** Injected at bundle time; overridable via WORKBOARD_API_URL. */
 declare const __WORKBOARD_DEFAULT_API_URL__: string;
 declare const __WORKBOARD_SKILL_MD__: string;
-declare const __WORKBOARD_CLAUDE_SNIPPET__: string;
+declare const __WORKBOARD_INSTRUCTIONS_SNIPPET__: string;
 
 const DEFAULT_API_URL =
   typeof __WORKBOARD_DEFAULT_API_URL__ !== "undefined"
@@ -33,8 +33,10 @@ const DEFAULT_API_URL =
 
 const SKILL_MD =
   typeof __WORKBOARD_SKILL_MD__ !== "undefined" ? __WORKBOARD_SKILL_MD__ : "";
-const CLAUDE_SNIPPET =
-  typeof __WORKBOARD_CLAUDE_SNIPPET__ !== "undefined" ? __WORKBOARD_CLAUDE_SNIPPET__ : "";
+const INSTRUCTIONS_SNIPPET =
+  typeof __WORKBOARD_INSTRUCTIONS_SNIPPET__ !== "undefined"
+    ? __WORKBOARD_INSTRUCTIONS_SNIPPET__
+    : "";
 
 function loadConfig(): Config {
   if (!existsSync(CONFIG_PATH)) {
@@ -75,7 +77,9 @@ Usage:
   workboard heartbeat [--note NOTE] [--claim ID]
   workboard release [claim-id|current] [--org slug]
   workboard link-repo [owner/name] [--org slug]
-  workboard init [--claude]    # install Cursor skill (+ optional CLAUDE.md snippet)
+  workboard init               # interactive: Claude Code / Codex / Cursor
+  workboard init --all
+  workboard init --claude-code --codex --cursor
   workboard whoami
 
 Env:
@@ -551,39 +555,107 @@ async function whoami() {
 }
 
 async function init(args: string[]) {
-  if (!SKILL_MD || !CLAUDE_SNIPPET) {
+  if (!SKILL_MD || !INSTRUCTIONS_SNIPPET) {
     die("This build is missing embedded skill assets. Reinstall workboard-cli.");
   }
 
-  const cwd = process.cwd();
-  const skillDir = join(cwd, ".cursor", "skills", "workboard");
-  const skillPath = join(skillDir, "SKILL.md");
-  mkdirSync(skillDir, { recursive: true });
-  writeFileSync(skillPath, SKILL_MD.endsWith("\n") ? SKILL_MD : `${SKILL_MD}\n`);
-  console.log(`Wrote ${skillPath}`);
+  type Target = "claude-code" | "codex" | "cursor";
+  const allTargets: Target[] = ["claude-code", "codex", "cursor"];
 
-  const withClaude = hasFlag(args, "--claude") || hasFlag(args, "--claude-md");
-  if (withClaude) {
-    const claudePath = join(cwd, "CLAUDE.md");
-    const marker = "## Workboard (required before coding)";
-    const block = CLAUDE_SNIPPET.trim() + "\n";
-    if (existsSync(claudePath)) {
-      const existing = readFileSync(claudePath, "utf8");
-      if (existing.includes(marker)) {
-        console.log(`CLAUDE.md already has a Workboard section — left unchanged.`);
+  const flagTargets = new Set<Target>();
+  if (hasFlag(args, "--all")) allTargets.forEach((t) => flagTargets.add(t));
+  if (hasFlag(args, "--claude-code") || hasFlag(args, "--claude")) flagTargets.add("claude-code");
+  if (hasFlag(args, "--codex")) flagTargets.add("codex");
+  if (hasFlag(args, "--cursor")) flagTargets.add("cursor");
+  // Legacy: --claude-md meant instruction file; keep as claude-code shorthand
+  if (hasFlag(args, "--claude-md")) flagTargets.add("claude-code");
+
+  let selected: Target[];
+  if (flagTargets.size > 0) {
+    selected = allTargets.filter((t) => flagTargets.has(t));
+  } else if (input.isTTY) {
+    console.error("Install Workboard agent wiring for:");
+    console.error("  1. All (Claude Code + Codex + Cursor)  [default]");
+    console.error("  2. Claude Code  → .claude/skills + CLAUDE.md");
+    console.error("  3. Codex        → .agents/skills + AGENTS.md");
+    console.error("  4. Cursor       → .cursor/skills");
+    console.error("  5. Custom — e.g. 2,3");
+    const rl = createInterface({ input, output });
+    try {
+      const answer = (await rl.question("Choice [1]: ")).trim() || "1";
+      if (answer === "1" || /^all$/i.test(answer)) {
+        selected = [...allTargets];
+      } else if (answer === "2") {
+        selected = ["claude-code"];
+      } else if (answer === "3") {
+        selected = ["codex"];
+      } else if (answer === "4") {
+        selected = ["cursor"];
       } else {
-        const sep = existing.endsWith("\n") || existing.length === 0 ? "\n" : "\n\n";
-        writeFileSync(claudePath, `${existing}${sep}${block}`);
-        console.log(`Appended Workboard section to ${claudePath}`);
+        const picked = new Set<Target>();
+        for (const part of answer.split(/[\s,]+/).filter(Boolean)) {
+          if (part === "1") allTargets.forEach((t) => picked.add(t));
+          if (part === "2" || part === "claude" || part === "claude-code") picked.add("claude-code");
+          if (part === "3" || part === "codex") picked.add("codex");
+          if (part === "4" || part === "cursor") picked.add("cursor");
+        }
+        selected = allTargets.filter((t) => picked.has(t));
+        if (!selected.length) {
+          die("No valid selection. Use 1–5, or flags: --claude-code --codex --cursor --all");
+        }
       }
-    } else {
-      writeFileSync(claudePath, `${block}\n`);
-      console.log(`Created ${claudePath}`);
+    } finally {
+      rl.close();
     }
   } else {
-    console.log("Tip: add agent instructions with  workboard init --claude");
-    console.log("Or paste templates/CLAUDE.workboard.md from the Workboard repo.");
+    // Non-interactive default: Claude Code + Codex (primary), plus Cursor.
+    selected = [...allTargets];
+    console.error("No TTY / no flags — installing all (Claude Code, Codex, Cursor).");
   }
+
+  const cwd = process.cwd();
+  const skillBody = SKILL_MD.endsWith("\n") ? SKILL_MD : `${SKILL_MD}\n`;
+  const marker = "## Workboard (required before coding)";
+  const instructions = INSTRUCTIONS_SNIPPET.trim() + "\n";
+
+  function writeSkill(relDir: string) {
+    const skillDir = join(cwd, ...relDir.split("/"));
+    const skillPath = join(skillDir, "SKILL.md");
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(skillPath, skillBody);
+    console.log(`Wrote ${skillPath}`);
+  }
+
+  function upsertDoc(filename: string) {
+    const path = join(cwd, filename);
+    if (existsSync(path)) {
+      const existing = readFileSync(path, "utf8");
+      if (existing.includes(marker)) {
+        console.log(`${filename} already has a Workboard section — left unchanged.`);
+        return;
+      }
+      const sep = existing.endsWith("\n") || existing.length === 0 ? "\n" : "\n\n";
+      writeFileSync(path, `${existing}${sep}${instructions}`);
+      console.log(`Appended Workboard section to ${filename}`);
+    } else {
+      writeFileSync(path, `${instructions}\n`);
+      console.log(`Created ${filename}`);
+    }
+  }
+
+  if (selected.includes("claude-code")) {
+    writeSkill(".claude/skills/workboard");
+    upsertDoc("CLAUDE.md");
+  }
+  if (selected.includes("codex")) {
+    writeSkill(".agents/skills/workboard");
+    upsertDoc("AGENTS.md");
+  }
+  if (selected.includes("cursor")) {
+    writeSkill(".cursor/skills/workboard");
+  }
+
+  console.log(`Done: ${selected.join(", ")}`);
 }
 
 const [cmd, ...rest] = process.argv.slice(2);

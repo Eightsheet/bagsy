@@ -19,20 +19,29 @@ npx workboard-cli --help
 From a GitHub Release tarball (no npm publish required):
 
 ```bash
-npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.2/workboard-cli-0.1.2.tgz
+npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.3/workboard-cli-0.1.3.tgz
 ```
 
-Wire the Cursor skill + optional `CLAUDE.md` into a project:
+Wire agent tooling into a project (Claude Code, Codex, Cursor):
 
 ```bash
-workboard init           # writes .cursor/skills/workboard/SKILL.md
-workboard init --claude  # also creates/appends CLAUDE.md
+workboard init                 # interactive picker
+workboard init --all           # Claude Code + Codex + Cursor
+workboard init --claude-code --codex
 ```
+
+What gets written:
+
+| Target | Skill | Instructions |
+|--------|--------|--------------|
+| Claude Code | `.claude/skills/workboard/SKILL.md` | `CLAUDE.md` |
+| Codex | `.agents/skills/workboard/SKILL.md` | `AGENTS.md` |
+| Cursor | `.cursor/skills/workboard/SKILL.md` | — |
 
 Default API: `https://repo-org-production.up.railway.app`  
 Override with `WORKBOARD_API_URL`.
 
-For agents / `AGENTS.md` / Cursor skill: see [AGENTS.md](./AGENTS.md), [templates/CLAUDE.workboard.md](./templates/CLAUDE.workboard.md), and `.cursor/skills/workboard/SKILL.md`.
+For agents: see [AGENTS.md](./AGENTS.md), [templates/CLAUDE.workboard.md](./templates/CLAUDE.workboard.md), [templates/AGENTS.workboard.md](./templates/AGENTS.workboard.md).
 
 ## WorkOS AuthKit
 

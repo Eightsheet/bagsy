@@ -41,6 +41,7 @@ Before doing meaningful implementation work in a shared repo, coordinate through
 ## Notes
 
 - Install: `npm i -g workboard-cli` or `npx workboard-cli …` (default API is production).
+- Agent wiring: `workboard init` (interactive) or `workboard init --claude-code --codex --cursor`.
 - Repo is auto-detected from `git remote origin`; team is resolved from which of your teams linked that remote.
 - Config lives in `~/.config/repo-org/config.json` (includes remembered `repoTeams` mappings).
 - API URL override: `WORKBOARD_API_URL`.
