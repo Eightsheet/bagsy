@@ -19,21 +19,24 @@ npx workboard-cli --help
 From a GitHub Release tarball (no npm publish required):
 
 ```bash
-npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.3/workboard-cli-0.1.3.tgz
+npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.4/workboard-cli-0.1.4.tgz
 ```
 
-Wire agent tooling into a project (Claude Code, Codex, Cursor):
+Wire agent tooling into a project (Claude Code, Codex, Cursor) — **skills only** by default:
 
 ```bash
-workboard init                 # interactive picker
-workboard init --all           # Claude Code + Codex + Cursor
+workboard init                 # interactive picker (skills)
+workboard init --all           # skills for all three
 workboard init --claude-code --codex
+workboard init --docs          # opt-in: also create/append CLAUDE.md / AGENTS.md
 ```
+
+`CLAUDE.md` / `AGENTS.md` are **not** auto-appended unless you pass `--docs` (or say yes in the interactive prompt).
 
 What gets written:
 
-| Target | Skill | Instructions |
-|--------|--------|--------------|
+| Target | Skill | Instructions (only with `--docs`) |
+|--------|--------|-----------------------------------|
 | Claude Code | `.claude/skills/workboard/SKILL.md` | `CLAUDE.md` |
 | Codex | `.agents/skills/workboard/SKILL.md` | `AGENTS.md` |
 | Cursor | `.cursor/skills/workboard/SKILL.md` | — |
