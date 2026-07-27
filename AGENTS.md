@@ -6,15 +6,13 @@ Before meaningful coding in a shared repo that uses Workboard:
 
 ```bash
 npm install -g workboard-cli
-workboard init --claude   # Cursor skill + CLAUDE.md snippet in this repo
+workboard init --all      # Claude Code + Codex + Cursor skills + CLAUDE.md / AGENTS.md
 workboard login
 workboard status
 workboard claim -t "Short title" -f path/one.ts
 ```
 
-Or paste [templates/CLAUDE.workboard.md](./templates/CLAUDE.workboard.md) into the project's `CLAUDE.md`.
-
-Skill: `.cursor/skills/workboard/SKILL.md`
+Or paste [templates/CLAUDE.workboard.md](./templates/CLAUDE.workboard.md) / [templates/AGENTS.workboard.md](./templates/AGENTS.workboard.md).
 
 ## Model
 

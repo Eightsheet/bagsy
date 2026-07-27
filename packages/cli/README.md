@@ -11,9 +11,16 @@ npx workboard-cli --help
 ```
 
 ```bash
-workboard init           # Cursor skill → .cursor/skills/workboard/SKILL.md
-workboard init --claude  # also create/append CLAUDE.md instructions
+workboard init                 # interactive: Claude Code / Codex / Cursor
+workboard init --all
+workboard init --claude-code --codex --cursor
 ```
+
+| Target | Skill path | Docs file |
+|--------|------------|-----------|
+| Claude Code | `.claude/skills/workboard/` | `CLAUDE.md` |
+| Codex | `.agents/skills/workboard/` | `AGENTS.md` |
+| Cursor | `.cursor/skills/workboard/` | — |
 
 Default API: `https://repo-org-production.up.railway.app`  
 Override: `WORKBOARD_API_URL=…`
@@ -27,4 +34,4 @@ workboard status
 workboard claim -t "Title" -f path/file.ts
 ```
 
-See the repo README and `.cursor/skills/workboard/SKILL.md` for agent usage.
+See the repo README for agent usage.

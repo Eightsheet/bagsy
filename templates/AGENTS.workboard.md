@@ -13,5 +13,4 @@ Before any meaningful implementation (editing code, starting a roadmap item, mul
 
 If `status` shows an overlap on the same files/task, do **not** silently continue — tell the user and pick a different slice or wait.
 
-Cursor skill (auto-loads when present): `.cursor/skills/workboard/SKILL.md`  
-Install into this repo: `workboard init`
+Install agent wiring in this repo: `workboard init` (Claude Code, Codex, and/or Cursor).
