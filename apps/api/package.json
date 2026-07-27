@@ -16,6 +16,7 @@
     "@workos-inc/node": "^7.54.0",
     "drizzle-orm": "^0.41.0",
     "hono": "^4.7.5",
+    "jose": "^6.2.4",
     "nanoid": "^5.1.5",
     "postgres": "^3.4.5",
     "zod": "^3.24.2"

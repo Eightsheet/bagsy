@@ -1,9 +1,11 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Context, Next } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { db } from "../db/client.js";
-import { apiTokens, memberships, organizations, sessions, users } from "../db/schema.js";
-import { hashToken, newId } from "../lib/crypto.js";
+import { memberships, organizations, sessions, users } from "../db/schema.js";
+import { newId } from "../lib/crypto.js";
+import { verifyWorkOsAccessToken } from "../lib/workos-jwt.js";
+import { ensureLocalUserFromWorkOsSub, resolveOrgForApiUser } from "./users.js";
 
 export type AuthUser = {
   id: string;
@@ -21,7 +23,9 @@ export type AuthOrg = {
 export type AuthContext = {
   user: AuthUser;
   org: AuthOrg;
-  via: "api_token" | "session";
+  via: "workos_jwt" | "session";
+  workosUserId?: string;
+  workosOrgId?: string | null;
 };
 
 declare module "hono" {
@@ -32,82 +36,58 @@ declare module "hono" {
   }
 }
 
+/** API auth: WorkOS AuthKit access JWT (JWKS). */
 export async function requireApiAuth(c: Context, next: Next) {
   const header = c.req.header("authorization");
   if (!header?.startsWith("Bearer ")) {
     return c.json({ error: "Missing Bearer token" }, 401);
   }
   const token = header.slice("Bearer ".length).trim();
-  const tokenHash = hashToken(token);
-
-  const row = await db
-    .select({
-      tokenId: apiTokens.id,
-      userId: users.id,
-      email: users.email,
-      name: users.name,
-      githubLogin: users.githubLogin,
-      orgId: organizations.id,
-      orgSlug: organizations.slug,
-      orgName: organizations.name,
-    })
-    .from(apiTokens)
-    .innerJoin(users, eq(apiTokens.userId, users.id))
-    .innerJoin(organizations, eq(apiTokens.orgId, organizations.id))
-    .where(and(eq(apiTokens.tokenHash, tokenHash), isNull(apiTokens.revokedAt)))
-    .limit(1);
-
-  const match = row[0];
-  if (!match) {
-    return c.json({ error: "Invalid token" }, 401);
+  if (!token) {
+    return c.json({ error: "Missing Bearer token" }, 401);
   }
 
-  await db
-    .update(apiTokens)
-    .set({ lastUsedAt: new Date() })
-    .where(eq(apiTokens.id, match.tokenId));
+  let claims;
+  try {
+    claims = await verifyWorkOsAccessToken(token);
+  } catch (err) {
+    const status =
+      err && typeof err === "object" && "status" in err && typeof (err as { status: unknown }).status === "number"
+        ? ((err as { status: number }).status as 401 | 503)
+        : 401;
+    const message = err instanceof Error ? err.message : "Invalid token";
+    return c.json({ error: message }, status);
+  }
 
-  const user = {
-    id: match.userId,
-    email: match.email,
-    name: match.name,
-    githubLogin: match.githubLogin,
-  };
-
-  let org: AuthOrg = {
-    id: match.orgId,
-    slug: match.orgSlug,
-    name: match.orgName,
-  };
-
-  // CLI may switch team per request (git remote → linked team).
+  const user = await ensureLocalUserFromWorkOsSub(claims.sub);
   const orgOverride = (c.req.header("x-workboard-org") ?? "").trim();
-  if (orgOverride) {
-    const overrideRows = await db
-      .select({
-        orgId: organizations.id,
-        orgSlug: organizations.slug,
-        orgName: organizations.name,
-      })
-      .from(memberships)
-      .innerJoin(organizations, eq(memberships.orgId, organizations.id))
-      .where(and(eq(memberships.userId, match.userId), eq(organizations.slug, orgOverride)))
-      .limit(1);
-    const override = overrideRows[0];
-    if (!override) {
-      return c.json({ error: "Not a member of that organization", org: orgOverride }, 403);
-    }
-    org = {
-      id: override.orgId,
-      slug: override.orgSlug,
-      name: override.orgName,
-    };
+  const org = await resolveOrgForApiUser({
+    localUserId: user.id,
+    workosUserId: claims.sub,
+    jwtOrgId: typeof claims.org_id === "string" ? claims.org_id : null,
+    orgOverrideSlug: orgOverride || null,
+  });
+
+  if (orgOverride && !org) {
+    return c.json({ error: "Not a member of that organization", org: orgOverride }, 403);
+  }
+  if (!org) {
+    return c.json(
+      {
+        error: "no_organization",
+        message: "No team selected. Open the web UI to create/join a team, or pass X-Workboard-Org.",
+        user,
+      },
+      403,
+    );
   }
 
   c.set("auth", {
     user,
     org,
-    via: "api_token",
+    via: "workos_jwt",
+    workosUserId: claims.sub,
+    workosOrgId: typeof claims.org_id === "string" ? claims.org_id : null,
   });
 
   await next();

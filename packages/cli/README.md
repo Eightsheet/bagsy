@@ -7,7 +7,7 @@ Agent coordination CLI for [Workboard](https://github.com/Eightsheet/repo-org).
 Not on the npm registry yet. Install from a [GitHub Release](https://github.com/Eightsheet/repo-org/releases/latest) tarball:
 
 ```bash
-npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.7/workboard-cli-0.1.7.tgz
+npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.8/workboard-cli-0.1.8.tgz
 ```
 
 ```bash
@@ -29,6 +29,8 @@ Override only for a self-hosted API: `WORKBOARD_API_URL=…`
 
 Auto-update (once/hour): channel `stable` waits 48h after release; `dev` updates immediately.  
 `workboard upgrade` installs latest now. Disable with `WORKBOARD_NO_AUTO_UPDATE=1`.
+
+Login uses WorkOS device auth (access JWT + refresh). After upgrading past auth changes, run `workboard login` again.
 
 ## Quick start
 

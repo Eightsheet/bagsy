@@ -1,8 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
-import { homedir } from "node:os";
+import { mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseGitRemoteUrl } from "@repo-org/shared";
 import {
@@ -11,23 +10,19 @@ import {
   installCliTarball,
   shouldAutoUpdate,
 } from "./update.js";
+import {
+  type AuthConfig,
+  ensureFreshAccessToken,
+  fetchAuthConfig,
+  loadAuthConfig,
+  refreshAccessToken,
+  saveAuthConfig,
+  storeLoginTokens,
+  workosDeviceLogin,
+} from "./auth.js";
 
 type Team = { id: string; slug: string; name: string };
-
-type Config = {
-  apiUrl: string;
-  token?: string;
-  /** Default / last-used team slug (token default may differ). */
-  orgSlug?: string;
-  /** Remembered team slug when a repo is linked in multiple teams. */
-  repoTeams?: Record<string, string>;
-  currentClaimId?: string;
-  /** ISO timestamp of last auto-update check. */
-  lastUpdateCheck?: string;
-};
-
-const CONFIG_DIR = join(homedir(), ".config", "repo-org");
-const CONFIG_PATH = join(CONFIG_DIR, "config.json");
+type Config = AuthConfig;
 
 /** Injected at bundle time; overridable via WORKBOARD_API_URL. */
 declare const __WORKBOARD_DEFAULT_API_URL__: string;
@@ -47,23 +42,11 @@ const INSTRUCTIONS_SNIPPET =
     : "";
 
 function loadConfig(): Config {
-  if (!existsSync(CONFIG_PATH)) {
-    return { apiUrl: process.env.WORKBOARD_API_URL ?? DEFAULT_API_URL };
-  }
-  const raw = JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as Config;
-  return {
-    apiUrl: process.env.WORKBOARD_API_URL ?? raw.apiUrl ?? DEFAULT_API_URL,
-    token: process.env.WORKBOARD_TOKEN ?? raw.token,
-    orgSlug: raw.orgSlug,
-    repoTeams: raw.repoTeams ?? {},
-    currentClaimId: raw.currentClaimId,
-    lastUpdateCheck: raw.lastUpdateCheck,
-  };
+  return loadAuthConfig(DEFAULT_API_URL);
 }
 
 function saveConfig(cfg: Config) {
-  mkdirSync(CONFIG_DIR, { recursive: true });
-  writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2) + "\n");
+  saveAuthConfig(cfg);
 }
 
 function die(message: string, code = 1): never {
@@ -153,27 +136,44 @@ async function api(
   init: RequestInit = {},
   orgSlug?: string,
 ): Promise<{ status: number; json: any }> {
-  if (!cfg.token) die("Not logged in. Run: workboard login");
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${cfg.token}`,
-    "Content-Type": "application/json",
-    ...(init.headers as Record<string, string> | undefined),
-  };
-  const team = orgSlug ?? cfg.orgSlug;
-  if (team) headers["X-Workboard-Org"] = team;
+  let current = await ensureFreshAccessToken(cfg);
+  if (!current.token) die("Not logged in. Run: workboard login");
 
-  const res = await fetch(`${cfg.apiUrl.replace(/\/$/, "")}${path}`, {
-    ...init,
-    headers,
-  });
-  const text = await res.text();
-  let json: any = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = { raw: text };
+  const run = async (token: string) => {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...(init.headers as Record<string, string> | undefined),
+    };
+    const team = orgSlug ?? current.orgSlug;
+    if (team) headers["X-Workboard-Org"] = team;
+
+    const res = await fetch(`${current.apiUrl.replace(/\/$/, "")}${path}`, {
+      ...init,
+      headers,
+    });
+    const text = await res.text();
+    let json: any = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = { raw: text };
+    }
+    return { status: res.status, json };
+  };
+
+  let result = await run(current.token!);
+  if (result.status === 401 && current.refreshToken && !process.env.WORKBOARD_TOKEN) {
+    try {
+      current = await refreshAccessToken(current);
+      Object.assign(cfg, current);
+      result = await run(current.token!);
+    } catch (err) {
+      die(err instanceof Error ? err.message : String(err));
+    }
   }
-  return { status: res.status, json };
+  Object.assign(cfg, current);
+  return result;
 }
 
 function git(cmd: string): string | null {
@@ -363,10 +363,12 @@ async function resolveTeamForLink(
 }
 
 async function login(args: string[]) {
-  const cfg = loadConfig();
+  let cfg = loadConfig();
   const tokenFlag = argValue(args, "--token");
   if (tokenFlag) {
     cfg.token = tokenFlag;
+    cfg.refreshToken = undefined;
+    cfg.tokenExpiresAt = undefined;
     saveConfig(cfg);
     const me = await api(cfg, "/v1/me");
     if (me.status !== 200) die(`Login failed: ${JSON.stringify(me.json)}`);
@@ -377,48 +379,37 @@ async function login(args: string[]) {
     return;
   }
 
-  const start = await fetch(`${cfg.apiUrl.replace(/\/$/, "")}/v1/auth/device/code`, {
-    method: "POST",
-  });
-  if (!start.ok) die(`Could not start login: ${start.status}`);
-  const device = (await start.json()) as {
-    device_code: string;
-    user_code: string;
-    verification_uri_complete: string;
-    interval: number;
-  };
-  console.log("Opening browser for WorkOS login…");
-  console.log(`Confirm code in browser: ${device.user_code}`);
-  console.log(`If it does not open: ${device.verification_uri_complete}`);
-
-  spawnSync("bash", [
-    "-lc",
-    `open '${device.verification_uri_complete}' 2>/dev/null || xdg-open '${device.verification_uri_complete}' 2>/dev/null || true`,
-  ]);
-
-  for (;;) {
-    await new Promise((r) => setTimeout(r, (device.interval || 2) * 1000));
-    const poll = await fetch(`${cfg.apiUrl.replace(/\/$/, "")}/v1/auth/device/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ device_code: device.device_code }),
-    });
-    const body = (await poll.json()) as { access_token?: string; error?: string };
-    if (poll.ok && body.access_token) {
-      cfg.token = body.access_token;
-      saveConfig(cfg);
-      const me = await api(cfg, "/v1/me");
-      cfg.orgSlug = me.json.org?.slug;
-      saveConfig(cfg);
-      console.log(`Logged in as ${me.json.user.email ?? me.json.user.id} · team ${me.json.org.slug}`);
-      console.log(`API: ${cfg.apiUrl}`);
-      console.log("Tip: day-to-day, the CLI picks your team from git remote.");
-      return;
-    }
-    if (body.error && body.error !== "authorization_pending") {
-      die(`Login failed: ${body.error}`);
-    }
+  let authCfg;
+  try {
+    authCfg = await fetchAuthConfig(cfg.apiUrl);
+  } catch (err) {
+    die(err instanceof Error ? err.message : String(err));
   }
+
+  const tokens = await workosDeviceLogin({
+    workosApiBaseUrl: authCfg.workosApiBaseUrl,
+    clientId: authCfg.workosClientId,
+    openBrowser: (url) => {
+      spawnSync("bash", [
+        "-lc",
+        `open '${url.replace(/'/g, `'\\''`)}' 2>/dev/null || xdg-open '${url.replace(/'/g, `'\\''`)}' 2>/dev/null || true`,
+      ]);
+    },
+  });
+
+  cfg = storeLoginTokens(cfg, tokens);
+  const me = await api(cfg, "/v1/me");
+  if (me.status === 403 && me.json?.error === "no_organization") {
+    console.log(`Logged in as ${me.json.user?.email ?? "user"} — create/join a team in the web UI first:`);
+    console.log(`  ${cfg.apiUrl}`);
+    return;
+  }
+  if (me.status !== 200) die(`Login failed: ${JSON.stringify(me.json)}`);
+  cfg.orgSlug = me.json.org?.slug;
+  saveConfig(cfg);
+  console.log(`Logged in as ${me.json.user.email ?? me.json.user.id} · team ${me.json.org.slug}`);
+  console.log(`API: ${cfg.apiUrl}`);
+  console.log("Tip: day-to-day, the CLI picks your team from git remote.");
 }
 
 async function status(args: string[]) {

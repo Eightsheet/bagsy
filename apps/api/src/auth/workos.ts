@@ -57,3 +57,21 @@ export async function authenticateWithOrganizationSelection(input: {
     pendingAuthenticationToken: input.pendingAuthenticationToken,
   });
 }
+
+export async function authenticateWithRefreshToken(refreshToken: string, organizationId?: string) {
+  const workos = getWorkOS();
+  const clientId = optionalEnv("WORKOS_CLIENT_ID");
+  if (!workos || !clientId) {
+    throw new Error("WorkOS is not configured");
+  }
+  return workos.userManagement.authenticateWithRefreshToken({
+    clientId,
+    refreshToken,
+    organizationId,
+  });
+}
+
+export function workosClientId(): string | undefined {
+  return optionalEnv("WORKOS_CLIENT_ID");
+}
+
