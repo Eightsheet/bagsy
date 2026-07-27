@@ -329,6 +329,7 @@ async function login(args: string[]) {
     interval: number;
   };
   console.log("Opening browser for WorkOS login…");
+  console.log(`Confirm code in browser: ${device.user_code}`);
   console.log(`If it does not open: ${device.verification_uri_complete}`);
 
   spawnSync("bash", [
