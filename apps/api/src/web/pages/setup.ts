@@ -167,7 +167,7 @@ export function setupPage(opts: {
       <ol class="steps">
         <li>
           <strong>Install the CLI</strong>
-          <code class="cmd">npm install -g workboard</code>
+          <code class="cmd">npm install -g workboard-cli</code>
         </li>
         <li>
           <strong>Sign in on this machine</strong>

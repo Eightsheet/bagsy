@@ -26,7 +26,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile=false
       - run: pnpm --filter @repo-org/shared build
-      - run: pnpm --filter workboard build
+      - run: pnpm --filter workboard-cli build
 
       - name: Read version
         id: ver
@@ -43,15 +43,15 @@ jobs:
       - name: Upload GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: packages/cli/workboard-*.tgz
+          files: packages/cli/workboard-cli-*.tgz
           generate_release_notes: true
           body: |
             ## Install
 
             ```bash
-            npm install -g workboard@${{ steps.ver.outputs.version }}
+            npm install -g workboard-cli@${{ steps.ver.outputs.version }}
             # or from this release:
-            npm install -g https://github.com/Eightsheet/repo-org/releases/download/v${{ steps.ver.outputs.version }}/workboard-${{ steps.ver.outputs.version }}.tgz
+            npm install -g https://github.com/Eightsheet/repo-org/releases/download/v${{ steps.ver.outputs.version }}/workboard-cli-${{ steps.ver.outputs.version }}.tgz
             ```
 
             ```bash

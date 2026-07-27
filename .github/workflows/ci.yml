@@ -25,7 +25,7 @@ jobs:
       - run: pnpm install --frozen-lockfile=false
       - run: pnpm --filter @repo-org/shared build
       - run: pnpm --filter @repo-org/api exec tsc -p tsconfig.json --noEmit
-      - run: pnpm --filter workboard build
+      - run: pnpm --filter workboard-cli build
       - run: node packages/cli/dist/workboard.js --help
       - name: Pack CLI (smoke)
         run: |

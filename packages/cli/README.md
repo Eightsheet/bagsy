@@ -5,9 +5,9 @@ Agent coordination CLI for [Workboard](https://github.com/Eightsheet/repo-org).
 ## Install
 
 ```bash
-npm install -g workboard
+npm install -g workboard-cli
 # or
-npx workboard --help
+npx workboard-cli --help
 ```
 
 Default API: `https://repo-org-production.up.railway.app`  
