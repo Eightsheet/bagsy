@@ -13,6 +13,7 @@ mkdirSync(outDir, { recursive: true });
 
 const skillMd = readFileSync(join(assetsDir, "skill", "SKILL.md"), "utf8");
 const instructionsSnippet = readFileSync(join(assetsDir, "INSTRUCTIONS.snippet.md"), "utf8");
+const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 
 await build({
   entryPoints: [join(root, "src", "index.ts")],
@@ -32,6 +33,7 @@ await build({
     ),
     __WORKBOARD_SKILL_MD__: JSON.stringify(skillMd),
     __WORKBOARD_INSTRUCTIONS_SNIPPET__: JSON.stringify(instructionsSnippet),
+    __WORKBOARD_VERSION__: JSON.stringify(pkg.version),
   },
   logLevel: "info",
 });

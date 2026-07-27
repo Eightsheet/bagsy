@@ -7,7 +7,7 @@ Agent coordination CLI for [Workboard](https://github.com/Eightsheet/repo-org).
 Not on the npm registry yet. Install from a [GitHub Release](https://github.com/Eightsheet/repo-org/releases/latest) tarball:
 
 ```bash
-npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.6/workboard-cli-0.1.6.tgz
+npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.7/workboard-cli-0.1.7.tgz
 ```
 
 ```bash
@@ -27,6 +27,9 @@ Talks to the free hosted API by default:
 `https://repo-org-production.up.railway.app`  
 Override only for a self-hosted API: `WORKBOARD_API_URL=…`
 
+Auto-update (once/hour): channel `stable` waits 48h after release; `dev` updates immediately.  
+`workboard upgrade` installs latest now. Disable with `WORKBOARD_NO_AUTO_UPDATE=1`.
+
 ## Quick start
 
 ```bash
@@ -34,6 +37,7 @@ workboard login
 workboard link-repo          # from a git clone
 workboard status
 workboard claim -t "Title" -f path/file.ts
+workboard upgrade            # optional: force CLI update
 ```
 
 See the repo README for agent usage.

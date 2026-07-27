@@ -5,6 +5,12 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseGitRemoteUrl } from "@repo-org/shared";
+import {
+  CLI_VERSION,
+  fetchCliUpdate,
+  installCliTarball,
+  shouldAutoUpdate,
+} from "./update.js";
 
 type Team = { id: string; slug: string; name: string };
 
@@ -16,6 +22,8 @@ type Config = {
   /** Remembered team slug when a repo is linked in multiple teams. */
   repoTeams?: Record<string, string>;
   currentClaimId?: string;
+  /** ISO timestamp of last auto-update check. */
+  lastUpdateCheck?: string;
 };
 
 const CONFIG_DIR = join(homedir(), ".config", "repo-org");
@@ -49,6 +57,7 @@ function loadConfig(): Config {
     orgSlug: raw.orgSlug,
     repoTeams: raw.repoTeams ?? {},
     currentClaimId: raw.currentClaimId,
+    lastUpdateCheck: raw.lastUpdateCheck,
   };
 }
 
@@ -81,13 +90,61 @@ Usage:
   workboard init --all
   workboard init --claude-code --codex --cursor
   workboard init --docs        # also create/append CLAUDE.md / AGENTS.md (opt-in)
+  workboard upgrade            # install latest CLI from GitHub Release (alias: update)
   workboard whoami
+  workboard version
 
 Env:
-  WORKBOARD_API_URL   API base (default: https://repo-org-production.up.railway.app)
-  WORKBOARD_TOKEN     API token override
+  WORKBOARD_API_URL        API base (default: https://repo-org-production.up.railway.app)
+  WORKBOARD_TOKEN          API token override
+  WORKBOARD_NO_AUTO_UPDATE=1  Skip background auto-update checks
 `);
   process.exit(0);
+}
+
+const UPDATE_CHECK_MS = 60 * 60 * 1000;
+
+async function maybeAutoUpdate(cfg: Config): Promise<void> {
+  if (process.env.WORKBOARD_NO_AUTO_UPDATE === "1") return;
+  const last = cfg.lastUpdateCheck ? Date.parse(cfg.lastUpdateCheck) : 0;
+  if (!Number.isNaN(last) && Date.now() - last < UPDATE_CHECK_MS) return;
+
+  cfg.lastUpdateCheck = new Date().toISOString();
+  try {
+    saveConfig(cfg);
+  } catch {
+    // ignore persistence failures
+  }
+
+  try {
+    const info = await fetchCliUpdate(cfg.apiUrl);
+    if (!info || !shouldAutoUpdate(info)) return;
+    console.error(`Updating workboard ${CLI_VERSION} → ${info.version} (${info.channel})…`);
+    const result = installCliTarball(info.tarballUrl);
+    if (result.ok) {
+      console.error(`Updated workboard → ${info.version}. Re-run your command if needed.`);
+    } else {
+      console.error(`Auto-update failed: ${result.detail}`);
+    }
+  } catch {
+    // silent — update must not break normal commands
+  }
+}
+
+async function upgrade(_args: string[]): Promise<void> {
+  const cfg = loadConfig();
+  const info = await fetchCliUpdate(cfg.apiUrl);
+  if (!info) die("Could not fetch CLI update info from API.");
+  if (info.version === CLI_VERSION) {
+    console.log(`Already on latest: ${CLI_VERSION} (channel ${info.channel})`);
+    return;
+  }
+  console.log(`Installing workboard ${info.version} (current ${CLI_VERSION})…`);
+  const result = installCliTarball(info.tarballUrl);
+  if (!result.ok) die(`Upgrade failed:\n${result.detail}`);
+  console.log(`Updated workboard → ${info.version}`);
+  cfg.lastUpdateCheck = new Date().toISOString();
+  saveConfig(cfg);
 }
 
 async function api(
@@ -681,6 +738,10 @@ const [cmd, ...rest] = process.argv.slice(2);
 if (!cmd || cmd === "-h" || cmd === "--help") usage();
 
 try {
+  if (cmd !== "upgrade" && cmd !== "update" && cmd !== "version" && cmd !== "-v" && cmd !== "--version") {
+    await maybeAutoUpdate(loadConfig());
+  }
+
   switch (cmd) {
     case "login":
       await login(rest);
@@ -705,6 +766,15 @@ try {
       break;
     case "whoami":
       await whoami();
+      break;
+    case "upgrade":
+    case "update":
+      await upgrade(rest);
+      break;
+    case "version":
+    case "-v":
+    case "--version":
+      console.log(CLI_VERSION);
       break;
     default:
       die(`Unknown command: ${cmd}\nRun workboard --help`);
