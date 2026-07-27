@@ -77,9 +77,10 @@ Usage:
   workboard heartbeat [--note NOTE] [--claim ID]
   workboard release [claim-id|current] [--org slug]
   workboard link-repo [owner/name] [--org slug]
-  workboard init               # interactive: Claude Code / Codex / Cursor
+  workboard init               # interactive: Claude Code / Codex / Cursor (skills only)
   workboard init --all
   workboard init --claude-code --codex --cursor
+  workboard init --docs        # also create/append CLAUDE.md / AGENTS.md (opt-in)
   workboard whoami
 
 Env:
@@ -568,18 +569,18 @@ async function init(args: string[]) {
   if (hasFlag(args, "--claude-code") || hasFlag(args, "--claude")) flagTargets.add("claude-code");
   if (hasFlag(args, "--codex")) flagTargets.add("codex");
   if (hasFlag(args, "--cursor")) flagTargets.add("cursor");
-  // Legacy: --claude-md meant instruction file; keep as claude-code shorthand
-  if (hasFlag(args, "--claude-md")) flagTargets.add("claude-code");
+
+  let writeDocs = hasFlag(args, "--docs") || hasFlag(args, "--claude-md") || hasFlag(args, "--agents-md");
 
   let selected: Target[];
   if (flagTargets.size > 0) {
     selected = allTargets.filter((t) => flagTargets.has(t));
   } else if (input.isTTY) {
-    console.error("Install Workboard agent wiring for:");
+    console.error("Install Workboard skills for:");
     console.error("  1. All (Claude Code + Codex + Cursor)  [default]");
-    console.error("  2. Claude Code  → .claude/skills + CLAUDE.md");
-    console.error("  3. Codex        → .agents/skills + AGENTS.md");
-    console.error("  4. Cursor       → .cursor/skills");
+    console.error("  2. Claude Code  → .claude/skills/workboard");
+    console.error("  3. Codex        → .agents/skills/workboard");
+    console.error("  4. Cursor       → .cursor/skills/workboard");
     console.error("  5. Custom — e.g. 2,3");
     const rl = createInterface({ input, output });
     try {
@@ -605,13 +606,23 @@ async function init(args: string[]) {
           die("No valid selection. Use 1–5, or flags: --claude-code --codex --cursor --all");
         }
       }
+      if (!writeDocs) {
+        const docsAnswer = (
+          await rl.question("Also create/append CLAUDE.md / AGENTS.md? [y/N]: ")
+        )
+          .trim()
+          .toLowerCase();
+        writeDocs = docsAnswer === "y" || docsAnswer === "yes";
+      }
     } finally {
       rl.close();
     }
   } else {
-    // Non-interactive default: Claude Code + Codex (primary), plus Cursor.
     selected = [...allTargets];
-    console.error("No TTY / no flags — installing all (Claude Code, Codex, Cursor).");
+    console.error("No TTY / no flags — installing skills for all (Claude Code, Codex, Cursor).");
+    if (!writeDocs) {
+      console.error("Skipping CLAUDE.md / AGENTS.md (pass --docs to append).");
+    }
   }
 
   const cwd = process.cwd();
@@ -646,17 +657,21 @@ async function init(args: string[]) {
 
   if (selected.includes("claude-code")) {
     writeSkill(".claude/skills/workboard");
-    upsertDoc("CLAUDE.md");
+    if (writeDocs) upsertDoc("CLAUDE.md");
   }
   if (selected.includes("codex")) {
     writeSkill(".agents/skills/workboard");
-    upsertDoc("AGENTS.md");
+    if (writeDocs) upsertDoc("AGENTS.md");
   }
   if (selected.includes("cursor")) {
     writeSkill(".cursor/skills/workboard");
   }
 
-  console.log(`Done: ${selected.join(", ")}`);
+  if (!writeDocs && (selected.includes("claude-code") || selected.includes("codex"))) {
+    console.log("Tip: pass --docs to also create/append CLAUDE.md / AGENTS.md (opt-in).");
+  }
+
+  console.log(`Done: ${selected.join(", ")}${writeDocs ? " (+ docs)" : ""}`);
 }
 
 const [cmd, ...rest] = process.argv.slice(2);

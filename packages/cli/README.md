@@ -11,13 +11,14 @@ npx workboard-cli --help
 ```
 
 ```bash
-workboard init                 # interactive: Claude Code / Codex / Cursor
+workboard init                 # interactive: Claude Code / Codex / Cursor (skills only)
 workboard init --all
 workboard init --claude-code --codex --cursor
+workboard init --docs          # opt-in: also CLAUDE.md / AGENTS.md
 ```
 
-| Target | Skill path | Docs file |
-|--------|------------|-----------|
+| Target | Skill path | Docs file (`--docs` only) |
+|--------|------------|---------------------------|
 | Claude Code | `.claude/skills/workboard/` | `CLAUDE.md` |
 | Codex | `.agents/skills/workboard/` | `AGENTS.md` |
 | Cursor | `.cursor/skills/workboard/` | — |
