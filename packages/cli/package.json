@@ -1,6 +1,6 @@
 {
   "name": "workboard-cli",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "CLI for Workboard agent coordination — claim work on shared repos",
   "type": "module",
   "bin": {

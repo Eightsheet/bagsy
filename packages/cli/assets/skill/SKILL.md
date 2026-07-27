@@ -36,11 +36,11 @@ Before doing meaningful implementation work in a shared repo, coordinate through
 - Prefer `--strict` only when the user asks to hard-block overlaps.
 - If the repo is not linked (`status` exit 2), run `workboard link-repo` once (CLI asks which team if you have several).
 - If the repo is linked in more than one of your teams and there is no remembered choice, pass `--org <slug>` (agents are non-interactive).
-- If not logged in, run `workboard login` (opens browser → WorkOS). Install with `npm i -g workboard-cli` if needed.
+- If not logged in, run `workboard login` (opens browser → WorkOS). Install from the GitHub Release tarball if needed (not on npm yet).
 
 ## Notes
 
-- Install: `npm i -g workboard-cli` or `npx workboard-cli …` (default API is production).
+- Install from GitHub Releases: `npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.5/workboard-cli-0.1.5.tgz`
 - Agent wiring: `workboard init` (interactive) or `workboard init --claude-code --codex --cursor`.
 - Repo is auto-detected from `git remote origin`; team is resolved from which of your teams linked that remote.
 - Config lives in `~/.config/repo-org/config.json` (includes remembered `repoTeams` mappings).

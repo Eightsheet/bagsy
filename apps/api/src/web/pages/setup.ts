@@ -236,7 +236,7 @@ export function setupPage(opts: {
       <ol class="steps">
         <li>
           <strong>Install the CLI</strong>
-          <code class="cmd">npm install -g workboard-cli</code>
+          <code class="cmd">npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.5/workboard-cli-0.1.5.tgz</code>
         </li>
         <li>
           <strong>Sign in on this machine</strong>

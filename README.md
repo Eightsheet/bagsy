@@ -10,23 +10,17 @@ Agent coordination service: claim what you're working on in a shared repo so oth
 
 ## Install CLI
 
-```bash
-npm install -g workboard-cli
-# or without installing:
-npx workboard-cli --help
-```
-
-From a GitHub Release tarball (no npm publish required):
+Install from the [GitHub Release](https://github.com/Eightsheet/repo-org/releases/latest) tarball (not on the npm registry yet):
 
 ```bash
-npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.4/workboard-cli-0.1.4.tgz
+npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.5/workboard-cli-0.1.5.tgz
 ```
 
-Wire agent tooling into a project (Claude Code, Codex, Cursor) — **skills only** by default:
+Then:
 
 ```bash
 workboard init                 # interactive picker (skills)
-workboard init --all           # skills for all three
+workboard init --all           # skills for Claude Code + Codex + Cursor
 workboard init --claude-code --codex
 workboard init --docs          # opt-in: also create/append CLAUDE.md / AGENTS.md
 ```
@@ -63,7 +57,7 @@ Optional: email/password or social connections under AuthKit as you prefer — W
 ## Stack
 
 - **API + Web:** Hono on Railway (`apps/api`)
-- **CLI:** `workboard` (`packages/cli`) — published as npm package `workboard-cli` (bin: `workboard`)
+- **CLI:** `workboard` (`packages/cli`) — distributed via GitHub Releases as `workboard-cli-*.tgz`
 - **Auth:** WorkOS AuthKit + API tokens for CLI/agents
 - **Tenancy:** Org-gated boards; repo as key within a team; optional GitHub verify
 
@@ -111,6 +105,7 @@ workboard claim -t "Title" -f path/a [--strict] [--org slug]
 workboard heartbeat --note "…"
 workboard release current
 workboard link-repo [--org slug]
+workboard init [--all|--claude-code|--codex|--cursor] [--docs]
 workboard whoami
 ```
 
@@ -118,7 +113,7 @@ Config: `~/.config/repo-org/config.json`
 
 ## Releases
 
-- Tag `vX.Y.Z` → GitHub Actions builds the CLI, attaches `workboard-X.Y.Z.tgz` to the Release, and publishes to npm when `NPM_TOKEN` is set.
+- Tag `vX.Y.Z` → GitHub Actions builds the CLI and attaches `workboard-cli-X.Y.Z.tgz` to the Release.
 - `main` is protected: PRs required, no force-push, no branch deletion.
 
 ## Security

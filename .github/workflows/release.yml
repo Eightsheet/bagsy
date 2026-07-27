@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  id-token: write
 
 jobs:
   release:
@@ -22,7 +21,6 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
 
       - run: pnpm install --frozen-lockfile=false
       - run: pnpm --filter @repo-org/shared build
@@ -48,9 +46,9 @@ jobs:
           body: |
             ## Install
 
+            Not published to the npm registry. Install from this release tarball:
+
             ```bash
-            npm install -g workboard-cli@${{ steps.ver.outputs.version }}
-            # or from this release:
             npm install -g https://github.com/Eightsheet/repo-org/releases/download/v${{ steps.ver.outputs.version }}/workboard-cli-${{ steps.ver.outputs.version }}.tgz
             ```
 
@@ -58,15 +56,3 @@ jobs:
             workboard login
             workboard status
             ```
-
-      - name: Publish to npm
-        working-directory: packages/cli
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "NPM_TOKEN not set — GitHub Release tarball only."
-            echo "Add repo secret NPM_TOKEN (npm automation token) to publish to the registry."
-            exit 0
-          fi
-          npm publish --access public
