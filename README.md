@@ -19,13 +19,34 @@ npx workboard-cli --help
 From a GitHub Release tarball (no npm publish required):
 
 ```bash
-npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.1/workboard-cli-0.1.1.tgz
+npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.2/workboard-cli-0.1.2.tgz
+```
+
+Wire the Cursor skill + optional `CLAUDE.md` into a project:
+
+```bash
+workboard init           # writes .cursor/skills/workboard/SKILL.md
+workboard init --claude  # also creates/appends CLAUDE.md
 ```
 
 Default API: `https://repo-org-production.up.railway.app`  
 Override with `WORKBOARD_API_URL`.
 
-For agents / `AGENTS.md` / Cursor skill: see [AGENTS.md](./AGENTS.md) and [.cursor/skills/workboard/SKILL.md](./.cursor/skills/workboard/SKILL.md).
+For agents / `AGENTS.md` / Cursor skill: see [AGENTS.md](./AGENTS.md), [templates/CLAUDE.workboard.md](./templates/CLAUDE.workboard.md), and `.cursor/skills/workboard/SKILL.md`.
+
+## WorkOS AuthKit
+
+Auth is already wired in the app (`provider: "authkit"`) and production has `WORKOS_API_KEY` / `WORKOS_CLIENT_ID` on Railway.
+
+Enable / verify in the [WorkOS Dashboard](https://dashboard.workos.com):
+
+1. **Authentication → AuthKit** — AuthKit enabled for the environment
+2. **Applications** → your app → **Redirects** — register exactly:
+   - `https://repo-org-production.up.railway.app/auth/callback`
+   - (local) `http://localhost:3000/auth/callback`
+3. Use the **same** Application’s Client ID + API key that Railway has (mismatch → `invalid_client`)
+
+Optional: email/password or social connections under AuthKit as you prefer — Workboard only needs the AuthKit redirect flow.
 
 ## Stack
 

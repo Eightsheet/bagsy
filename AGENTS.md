@@ -6,12 +6,13 @@ Before meaningful coding in a shared repo that uses Workboard:
 
 ```bash
 npm install -g workboard-cli
-# or: npx workboard-cli …
-export WORKBOARD_API_URL=https://repo-org-production.up.railway.app   # optional; default in published CLI
+workboard init --claude   # Cursor skill + CLAUDE.md snippet in this repo
 workboard login
 workboard status
 workboard claim -t "Short title" -f path/one.ts
 ```
+
+Or paste [templates/CLAUDE.workboard.md](./templates/CLAUDE.workboard.md) into the project's `CLAUDE.md`.
 
 Skill: `.cursor/skills/workboard/SKILL.md`
 
