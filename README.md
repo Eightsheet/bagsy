@@ -25,7 +25,7 @@ The CLI talks to that URL by default. Override only if you run your own API: `WO
 Install from the [GitHub Release](https://github.com/Eightsheet/repo-org/releases/latest) tarball (not on the npm registry yet):
 
 ```bash
-npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.6/workboard-cli-0.1.6.tgz
+npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.7/workboard-cli-0.1.7.tgz
 ```
 
 Then:
@@ -46,6 +46,24 @@ What gets written:
 | Claude Code | `.claude/skills/workboard/SKILL.md` | `CLAUDE.md` |
 | Codex | `.agents/skills/workboard/SKILL.md` | `AGENTS.md` |
 | Cursor | `.cursor/skills/workboard/SKILL.md` | — |
+
+### Updates
+
+The CLI checks the hosted API about once an hour and may auto-install a newer release:
+
+- **Channel `stable` (default):** auto-update only **48 hours** after the GitHub Release is published
+- **Channel `dev`:** auto-update as soon as a newer release exists (hosted instance uses this)
+
+Manual upgrade (always immediate):
+
+```bash
+workboard upgrade   # alias: workboard update
+workboard version
+```
+
+Disable background checks: `WORKBOARD_NO_AUTO_UPDATE=1`.
+
+API operators set the channel with `WORKBOARD_CLI_UPDATE_CHANNEL=stable|dev`.
 
 For agents: see [AGENTS.md](./AGENTS.md), [templates/CLAUDE.workboard.md](./templates/CLAUDE.workboard.md), [templates/AGENTS.workboard.md](./templates/AGENTS.workboard.md).
 
@@ -136,11 +154,13 @@ See [SECURITY.md](./SECURITY.md). Making the repo public does **not** open the h
 | `DATABASE_URL` | Postgres (Railway plugin) |
 | `APP_URL` | Public URL |
 | `WORKOS_API_KEY` / `WORKOS_CLIENT_ID` | AuthKit (required) |
+| `WORKBOARD_CLI_UPDATE_CHANNEL` | `stable` (48h delay) or `dev` (immediate); default `stable` |
 | `SKIP_GITHUB_VERIFY=1` | Soft-skip GitHub repo verify |
 | `GITHUB_VERIFY_TOKEN` | Optional PAT for verify |
 
 ## API
 
+- `GET /v1/cli/update` — public; latest CLI version + channel
 - `GET /v1/me`
 - `GET /v1/repos/:owner/:repo/context`
 - `GET|POST /v1/repos/:owner/:repo/claims` — header `X-Workboard-Org: slug`

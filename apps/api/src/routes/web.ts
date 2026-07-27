@@ -33,6 +33,7 @@ import {
   organizations,
   users,
 } from "../db/schema.js";
+import { getCliUpdateInfo } from "../lib/cli-update.js";
 import { generateApiToken, generateDeviceCodes, newId } from "../lib/crypto.js";
 import { appUrl, workosConfigured } from "../lib/env.js";
 import { rateLimit } from "../lib/rate-limit.js";
@@ -452,6 +453,19 @@ webRoutes.post("/repos", requireSession, async (c) => {
   }
   return c.redirect("/");
 });
+
+/** Public: CLI version / update channel (no auth). */
+webRoutes.get(
+  "/v1/cli/update",
+  rateLimit({ name: "cli-update", windowMs: 60_000, max: 60 }),
+  async (c) => {
+    const info = await getCliUpdateInfo();
+    if (!info) {
+      return c.json({ error: "release_unavailable", message: "Could not resolve latest CLI release." }, 503);
+    }
+    return c.json(info);
+  },
+);
 
 // Device flow for CLI — WorkOS login, then explicit approve
 webRoutes.post(
