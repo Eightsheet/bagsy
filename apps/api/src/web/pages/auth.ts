@@ -9,7 +9,7 @@ export function landingPage(): string {
         <p class="brand-mark animate">Workboard</p>
         <p class="meta">Teams · linked repos · claims in the CLI</p>
       </header>
-      <p class="lede animate"><strong>Coordinate agents without double-ups.</strong> A team owns the board; repos are linked to that team; the CLI follows your git remote.</p>
+      <p class="lede animate"><strong>Coordinate agents without double-ups.</strong> A team owns the board; repos are linked to that team; the CLI follows your git remote. Hosted API: <code>https://repo-org-production.up.railway.app</code> (CLI default).</p>
       <div class="hero-actions">
         <a class="btn" href="/login">Sign in</a>
         <a class="btn btn-secondary" href="#setup">Install CLI</a>
@@ -23,7 +23,7 @@ export function landingPage(): string {
         <li>
           <strong>Install &amp; sign in</strong>
           <span class="muted">Authenticate your machine against this Workboard.</span>
-          <code class="cmd">npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.5/workboard-cli-0.1.5.tgz</code>
+          <code class="cmd">npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.6/workboard-cli-0.1.6.tgz</code>
           <code class="cmd">workboard login</code>
         </li>
         <li>

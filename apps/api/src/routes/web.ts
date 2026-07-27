@@ -35,6 +35,7 @@ import {
 } from "../db/schema.js";
 import { generateApiToken, generateDeviceCodes, newId } from "../lib/crypto.js";
 import { appUrl, workosConfigured } from "../lib/env.js";
+import { rateLimit } from "../lib/rate-limit.js";
 import {
   chooseOrgPage,
   landingPage,
@@ -274,7 +275,16 @@ webRoutes.post("/orgs/sync", requireSession, async (c) => {
   return c.redirect("/");
 });
 
-webRoutes.post("/orgs/create", requireSession, async (c) => {
+webRoutes.post(
+  "/orgs/create",
+  requireSession,
+  rateLimit({
+    name: "org-create",
+    windowMs: 60 * 60 * 1000,
+    max: 10,
+    key: (c) => c.get("sessionUser")?.id ?? "anon",
+  }),
+  async (c) => {
   const user = c.get("sessionUser")!;
   const local = (await db.select().from(users).where(eq(users.id, user.id)).limit(1))[0];
   if (!local?.workosUserId) {
@@ -315,7 +325,16 @@ webRoutes.post("/orgs/create", requireSession, async (c) => {
   }
 });
 
-webRoutes.post("/orgs/invite", requireSession, async (c) => {
+webRoutes.post(
+  "/orgs/invite",
+  requireSession,
+  rateLimit({
+    name: "org-invite",
+    windowMs: 60 * 60 * 1000,
+    max: 30,
+    key: (c) => c.get("sessionUser")?.id ?? "anon",
+  }),
+  async (c) => {
   const user = c.get("sessionUser")!;
   const local = (await db.select().from(users).where(eq(users.id, user.id)).limit(1))[0];
   if (!local?.workosUserId) {
@@ -434,8 +453,11 @@ webRoutes.post("/repos", requireSession, async (c) => {
   return c.redirect("/");
 });
 
-// Device flow for CLI — WorkOS login, then auto-approve
-webRoutes.post("/v1/auth/device/code", async (c) => {
+// Device flow for CLI — WorkOS login, then explicit approve
+webRoutes.post(
+  "/v1/auth/device/code",
+  rateLimit({ name: "device-code", windowMs: 60_000, max: 10 }),
+  async (c) => {
   const { deviceCode, userCode } = generateDeviceCodes();
   const id = newId("dev");
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
@@ -530,7 +552,16 @@ webRoutes.get("/device", async (c) => {
   );
 });
 
-webRoutes.post("/device", requireSession, async (c) => {
+webRoutes.post(
+  "/device",
+  requireSession,
+  rateLimit({
+    name: "device-approve",
+    windowMs: 60_000,
+    max: 20,
+    key: (c) => c.get("sessionUser")?.id ?? "anon",
+  }),
+  async (c) => {
   const user = c.get("sessionUser")!;
   const body = await c.req.parseBody();
   const userCode = String(body.user_code ?? "").toUpperCase();
@@ -572,7 +603,10 @@ webRoutes.post("/device", requireSession, async (c) => {
   );
 });
 
-webRoutes.post("/v1/auth/device/token", async (c) => {
+webRoutes.post(
+  "/v1/auth/device/token",
+  rateLimit({ name: "device-token", windowMs: 60_000, max: 60 }),
+  async (c) => {
   const body = await c.req.json<{ device_code?: string }>();
   const deviceCode = body.device_code;
   if (!deviceCode) return c.json({ error: "device_code required" }, 400);

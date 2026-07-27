@@ -7,7 +7,7 @@ Agent coordination CLI for [Workboard](https://github.com/Eightsheet/repo-org).
 Not on the npm registry yet. Install from a [GitHub Release](https://github.com/Eightsheet/repo-org/releases/latest) tarball:
 
 ```bash
-npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.5/workboard-cli-0.1.5.tgz
+npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.6/workboard-cli-0.1.6.tgz
 ```
 
 ```bash
@@ -23,8 +23,8 @@ workboard init --docs          # opt-in: also CLAUDE.md / AGENTS.md
 | Codex | `.agents/skills/workboard/` | `AGENTS.md` |
 | Cursor | `.cursor/skills/workboard/` | — |
 
-Default API: `https://repo-org-production.up.railway.app`  
-Override: `WORKBOARD_API_URL=…`
+Default API (hosted): `https://repo-org-production.up.railway.app`  
+Override only for a self-hosted API: `WORKBOARD_API_URL=…`
 
 ## Quick start
 

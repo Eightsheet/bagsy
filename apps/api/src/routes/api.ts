@@ -16,10 +16,24 @@ import {
 } from "../lib/claims.js";
 import { newId } from "../lib/crypto.js";
 import { verifyGithubRepoAccess } from "../lib/github.js";
+import { rateLimit } from "../lib/rate-limit.js";
 
 export const apiRoutes = new Hono();
 
+apiRoutes.use(
+  "/v1/*",
+  rateLimit({ name: "api-ip", windowMs: 60_000, max: 180 }),
+);
 apiRoutes.use("/v1/*", requireApiAuth);
+apiRoutes.use(
+  "/v1/*",
+  rateLimit({
+    name: "api-user",
+    windowMs: 60_000,
+    max: 120,
+    key: (c) => c.get("auth")?.user.id ?? "anon",
+  }),
+);
 
 apiRoutes.get("/v1/me", async (c) => {
   const auth = c.get("auth");

@@ -24,8 +24,17 @@ Do not open a public issue for credential leaks, auth bypasses, or RCE.
 - API routes require Bearer tokens; claim heartbeat/release are owner-scoped
 - Team override via `X-Workboard-Org` requires membership
 - Session cookies: `HttpOnly`, `SameSite=Lax`, `Secure` in production
+- In-memory rate limits on device login, invites/org create, and API calls (per IP / user)
 - No secrets committed (`.env` gitignored); use Railway / local env only
 - `main` requires pull requests (branch protection); force-push and deletion disabled
+
+## Hosted instance
+
+The public CLI defaults to the Railway deployment:
+
+`https://repo-org-production.up.railway.app`
+
+Override only when running your own API (`WORKBOARD_API_URL`).
 
 ## Operator checklist (hosted instance)
 
