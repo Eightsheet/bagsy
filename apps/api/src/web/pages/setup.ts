@@ -1,20 +1,88 @@
 import { escapeHtml, layout, topbar, type ShellOrg, type ShellUser } from "../html.js";
 
+export type SetupMember = {
+  userId: string;
+  email: string | null;
+  name: string | null;
+  role: string;
+};
+
+export type SetupPendingInvite = {
+  id: string;
+  email: string;
+  state: string;
+};
+
 export function setupPage(opts: {
   user: ShellUser;
   org: ShellOrg | null;
   orgs: ShellOrg[];
   repos: Array<{ repo: string; verifiedAt: Date | null }>;
+  members?: SetupMember[];
+  pendingInvites?: SetupPendingInvite[];
   flash?: string | null;
   error?: string | null;
   defaultOrgName: string;
 }): string {
-  const { user, org, orgs, repos, flash, error, defaultOrgName } = opts;
+  const {
+    user,
+    org,
+    orgs,
+    repos,
+    members = [],
+    pendingInvites = [],
+    flash,
+    error,
+    defaultOrgName,
+  } = opts;
 
   const notices = `
     ${flash ? `<p class="ok">${escapeHtml(flash)}</p>` : ""}
     ${error ? `<p class="warn">${escapeHtml(error)}</p>` : ""}
   `;
+
+  const membersBlock = org
+    ? `
+    <div class="members-block" style="margin-top:14px">
+      <h3 style="margin:0 0 8px;font:inherit;font-weight:600">Members</h3>
+      ${
+        members.length
+          ? `<ul class="list">
+              ${members
+                .map((m) => {
+                  const label = m.name?.trim() || m.email || m.userId;
+                  const you = m.userId === user.id ? ' <span class="muted">(you)</span>' : "";
+                  return `
+                <li>
+                  <span>
+                    <strong>${escapeHtml(label)}</strong>${you}
+                    ${m.email && m.name ? `<span class="muted" style="display:block;font-size:0.85rem">${escapeHtml(m.email)}</span>` : ""}
+                  </span>
+                  <span class="badge">${escapeHtml(m.role)}</span>
+                </li>`;
+                })
+                .join("")}
+            </ul>`
+          : `<p class="empty">No members synced yet. Invite someone, or hit Refresh after they accept.</p>`
+      }
+      ${
+        pendingInvites.length
+          ? `<p class="muted" style="margin:10px 0 6px;font-size:0.85rem">Pending invites</p>
+             <ul class="list">
+               ${pendingInvites
+                 .map(
+                   (inv) => `
+                <li>
+                  <code>${escapeHtml(inv.email)}</code>
+                  <span class="badge">Pending</span>
+                </li>`,
+                 )
+                 .join("")}
+             </ul>`
+          : ""
+      }
+    </div>`
+    : "";
 
   const inviteExisting = org
     ? `
@@ -101,6 +169,7 @@ export function setupPage(opts: {
           ? `<p>Active: <strong>${escapeHtml(org.name)}</strong> <span class="mono muted">${escapeHtml(org.slug)}</span></p>`
           : ""
       }
+      ${membersBlock}
       ${inviteExisting}
       ${noActiveButHasOrgs}
       ${firstOrg}
