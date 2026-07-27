@@ -23,7 +23,7 @@ export function landingPage(): string {
         <li>
           <strong>Install &amp; sign in</strong>
           <span class="muted">Authenticate your machine against this Workboard.</span>
-          <code class="cmd">npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.8/workboard-cli-0.1.8.tgz</code>
+          <code class="cmd">npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.9/workboard-cli-0.1.9.tgz</code>
           <code class="cmd">workboard login</code>
         </li>
         <li>

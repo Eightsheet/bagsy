@@ -1,4 +1,4 @@
-export type ClaimStatus = "active" | "released" | "expired";
+export type ClaimStatus = "active" | "stale" | "released" | "expired";
 
 export interface ClaimInput {
   repo: string;
@@ -10,6 +10,8 @@ export interface ClaimInput {
   agentLabel?: string | null;
   note?: string | null;
   strict?: boolean;
+  /** Take over overlapping stale claims. */
+  steal?: boolean;
   ttlSeconds?: number;
 }
 
@@ -39,11 +41,15 @@ export interface OverlapInfo {
   title: string;
   userName: string | null;
   userEmail: string | null;
+  status?: ClaimStatus;
   reasons: Array<"files" | "roadmap_ref" | "title">;
   overlappingFiles: string[];
 }
 
+/** Heartbeat window while the agent is actively working. */
 export const DEFAULT_TTL_SECONDS = 2 * 60 * 60;
+/** After TTL, claim stays held as `stale` this long (WIP soft hold) before fully expiring. */
+export const SOFT_HOLD_SECONDS = 24 * 60 * 60;
 
 /** Normalize repo to owner/name lowercase. */
 export function normalizeRepo(input: string): string {
@@ -90,7 +96,7 @@ function normalizeTitle(title: string): string {
 export function findOverlaps(
   candidate: Pick<ClaimInput, "title" | "files" | "roadmapRef">,
   existing: Array<
-    Pick<ClaimRecord, "id" | "title" | "files" | "roadmapRef" | "userName" | "userEmail">
+    Pick<ClaimRecord, "id" | "title" | "files" | "roadmapRef" | "userName" | "userEmail" | "status">
   >,
 ): OverlapInfo[] {
   const overlaps: OverlapInfo[] = [];
@@ -127,6 +133,7 @@ export function findOverlaps(
         title: claim.title,
         userName: claim.userName,
         userEmail: claim.userEmail,
+        status: claim.status,
         reasons,
         overlappingFiles: [...new Set(overlappingFiles)],
       });
