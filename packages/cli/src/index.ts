@@ -65,7 +65,7 @@ Usage:
   workboard login              # opens browser → WorkOS AuthKit
   workboard login --token TOKEN
   workboard status [--repo owner/name] [--org slug]
-  workboard claim -t TITLE [-f FILE ...] [--roadmap REF] [--branch B] [--strict] [--note NOTE] [--org slug]
+  workboard claim -t TITLE [-f FILE ...] [--roadmap REF] [--branch B] [--strict] [--steal] [--note NOTE] [--org slug]
   workboard heartbeat [--note NOTE] [--claim ID]
   workboard release [claim-id|current] [--org slug]
   workboard link-repo [owner/name] [--org slug]
@@ -441,13 +441,16 @@ async function status(args: string[]) {
   }
   for (const claim of claims) {
     console.log("---");
-    console.log(`# ${claim.id}`);
+    const stale = claim.status === "stale" ? " [STALE — soft hold, may have local WIP]" : "";
+    console.log(`# ${claim.id}${stale}`);
     console.log(`${claim.title} — ${claim.userName ?? claim.userEmail ?? claim.userId}`);
     if (claim.branch) console.log(`branch: ${claim.branch}`);
     if (claim.roadmapRef) console.log(`roadmap: ${claim.roadmapRef}`);
     if (claim.files?.length) console.log(`files: ${claim.files.join(", ")}`);
     if (claim.note) console.log(`note: ${claim.note}`);
-    console.log(`expires: ${claim.expiresAt}`);
+    console.log(
+      `expires: ${claim.expiresAt}${claim.status === "stale" ? " (soft hold ~24h after)" : ""}`,
+    );
   }
 }
 
@@ -471,6 +474,7 @@ async function claim(args: string[]) {
     agentLabel: argValue(args, "--agent") ?? process.env.WORKBOARD_AGENT_LABEL ?? null,
     note: argValue(args, "--note") ?? null,
     strict: hasFlag(args, "--strict"),
+    steal: hasFlag(args, "--steal"),
   };
   const res = await api(
     cfg,
@@ -479,6 +483,13 @@ async function claim(args: string[]) {
     team.slug,
   );
   if (res.status === 409) {
+    const err = String(res.json?.error ?? "");
+    if (err.startsWith("soft_hold")) {
+      console.error("Soft hold — overlapping claim went stale (agent may still have local WIP):");
+      console.error(JSON.stringify(res.json.overlaps, null, 2));
+      console.error("Take over with: workboard claim ... --steal");
+      process.exit(3);
+    }
     console.error("Strict overlap blocked:");
     console.error(JSON.stringify(res.json.overlaps, null, 2));
     process.exit(3);
@@ -488,6 +499,9 @@ async function claim(args: string[]) {
   saveConfig(cfg);
   console.log(`Claimed ${res.json.claim.id}: ${res.json.claim.title}`);
   console.log(`Team: ${team.name} (${team.slug})`);
+  if (res.json.stole?.length) {
+    console.log(`Stole soft-held claims: ${res.json.stole.join(", ")}`);
+  }
   if (res.json.overlaps?.length) {
     console.log("Warning: overlaps with existing claims:");
     console.log(JSON.stringify(res.json.overlaps, null, 2));

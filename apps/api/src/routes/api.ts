@@ -92,6 +92,7 @@ const claimBody = z.object({
   agentLabel: z.string().max(200).optional().nullable(),
   note: z.string().max(1000).optional().nullable(),
   strict: z.boolean().optional(),
+  steal: z.boolean().optional(),
   ttlSeconds: z.number().int().positive().max(24 * 60 * 60).optional(),
 });
 
