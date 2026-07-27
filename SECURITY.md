@@ -21,10 +21,10 @@ Do not open a public issue for credential leaks, auth bypasses, or RCE.
 
 ## Hardening already in place
 
-- API routes require Bearer tokens; claim heartbeat/release are owner-scoped
+- API routes require WorkOS AuthKit Bearer JWTs (JWKS); claim heartbeat/release are owner-scoped
 - Team override via `X-Workboard-Org` requires membership
-- Session cookies: `HttpOnly`, `SameSite=Lax`, `Secure` in production
-- In-memory rate limits on device login, invites/org create, API calls, and `GET /v1/cli/update` (per IP / user)
+- Session cookies (web UI): `HttpOnly`, `SameSite=Lax`, `Secure` in production
+- In-memory rate limits on auth, invites/org create, API calls, and `GET /v1/cli/update`
 - No secrets committed (`.env` gitignored); use Railway / local env only
 - `main` requires pull requests (branch protection); force-push and deletion disabled
 
@@ -36,11 +36,15 @@ The public CLI defaults to the Railway deployment:
 
 Override only when running your own API (`WORKBOARD_API_URL`).
 
-`GET /v1/cli/update` is public (version + channel only) so the CLI can auto-update. Channel is controlled by `WORKBOARD_CLI_UPDATE_CHANNEL` (`stable` = 48h delay, `dev` = immediate).
+`GET /v1/cli/update` is public (version + channel).  
+`GET /v1/auth/config` exposes the public WorkOS client id for CLI device login.  
+`POST /v1/auth/refresh` exchanges a refresh token (rate-limited).
+
+API auth validates WorkOS access JWTs: JWKS signature, `exp`, allowlisted `iss`, and `client_id` (or `aud`) matching `WORKOS_CLIENT_ID` — not a hard `iss === CLIENT_ID` check (multi-app safe).
 
 ## Operator checklist (hosted instance)
 
 - Keep `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, `DATABASE_URL` only in Railway (or equivalent)
 - Prefer leaving `SKIP_GITHUB_VERIFY` unset once GitHub verify is wired
-- Rotate API tokens / revoke via DB if a laptop token leaks (`api_tokens.revoked_at`)
 - Set `WORKBOARD_CLI_UPDATE_CHANNEL=dev` only if you want CLIs to pick up releases immediately
+- After auth migrations, tell users to `workboard upgrade` then `workboard login`

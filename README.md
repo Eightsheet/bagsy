@@ -25,7 +25,7 @@ The CLI talks to that URL by default. Override only if you run your own API: `WO
 Install from the [GitHub Release](https://github.com/Eightsheet/repo-org/releases/latest) tarball (not on the npm registry yet):
 
 ```bash
-npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.7/workboard-cli-0.1.7.tgz
+npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.8/workboard-cli-0.1.8.tgz
 ```
 
 Then:
@@ -46,6 +46,19 @@ What gets written:
 | Claude Code | `.claude/skills/workboard/SKILL.md` | `CLAUDE.md` |
 | Codex | `.agents/skills/workboard/SKILL.md` | `AGENTS.md` |
 | Cursor | `.cursor/skills/workboard/SKILL.md` | — |
+
+### Auth (WorkOS JWT)
+
+CLI login uses **WorkOS device authorization** and stores an AuthKit access JWT (+ refresh) in `~/.config/repo-org/config.json` (mode `0600`).
+
+API `/v1/*` validates the Bearer token via WorkOS JWKS (`client_id` app binding; flexible `iss` for multi-app).
+
+```bash
+workboard login          # WorkOS device flow
+workboard upgrade        # then re-login after auth migrations
+```
+
+Old opaque CLI tokens no longer work — run `workboard login` again after upgrading.
 
 ### Updates
 
@@ -160,6 +173,8 @@ See [SECURITY.md](./SECURITY.md). Making the repo public does **not** open the h
 
 ## API
 
+- `GET /v1/auth/config` — public; WorkOS client id for CLI device login
+- `POST /v1/auth/refresh` — public; refresh WorkOS access token
 - `GET /v1/cli/update` — public; latest CLI version + channel
 - `GET /v1/me`
 - `GET /v1/repos/:owner/:repo/context`

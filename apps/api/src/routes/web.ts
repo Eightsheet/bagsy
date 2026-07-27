@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { deleteCookie } from "hono/cookie";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { normalizeRepo } from "@repo-org/shared";
 import {
   createSession,
@@ -22,19 +22,20 @@ import {
 import {
   authenticateWithCode,
   authenticateWithOrganizationSelection,
+  authenticateWithRefreshToken,
   getAuthKitUrl,
+  workosClientId,
 } from "../auth/workos.js";
+import { upsertLocalUserFromWorkOs } from "../auth/users.js";
 import { db } from "../db/client.js";
 import {
-  apiTokens,
-  deviceCodes,
   linkedRepos,
   memberships,
   organizations,
   users,
 } from "../db/schema.js";
 import { getCliUpdateInfo } from "../lib/cli-update.js";
-import { generateApiToken, generateDeviceCodes, newId } from "../lib/crypto.js";
+import { newId } from "../lib/crypto.js";
 import { appUrl, workosConfigured } from "../lib/env.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import {
@@ -43,13 +44,6 @@ import {
   loginPage,
   noOrgPage,
 } from "../web/pages/auth.js";
-import {
-  deviceApprovePage,
-  deviceApprovedPage,
-  deviceMissingOrgPage,
-  deviceNoOrgPage,
-  devicePickOrgPage,
-} from "../web/pages/device.js";
 import { setupPage } from "../web/pages/setup.js";
 
 export const webRoutes = new Hono();
@@ -62,32 +56,7 @@ async function upsertLocalUser(woUser: {
   firstName: string | null;
   lastName: string | null;
 }) {
-  let userRow = (
-    await db.select().from(users).where(eq(users.workosUserId, woUser.id)).limit(1)
-  )[0];
-
-  if (!userRow) {
-    const id = newId("usr");
-    [userRow] = await db
-      .insert(users)
-      .values({
-        id,
-        workosUserId: woUser.id,
-        email: woUser.email,
-        name: [woUser.firstName, woUser.lastName].filter(Boolean).join(" ") || woUser.email,
-      })
-      .returning();
-  } else {
-    await db
-      .update(users)
-      .set({
-        email: woUser.email,
-        name: [woUser.firstName, woUser.lastName].filter(Boolean).join(" ") || woUser.email,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, userRow.id));
-  }
-  return userRow!;
+  return upsertLocalUserFromWorkOs(woUser);
 }
 
 function isOrgSelectionError(err: unknown): err is {
@@ -454,6 +423,60 @@ webRoutes.post("/repos", requireSession, async (c) => {
   return c.redirect("/");
 });
 
+/** Public: CLI discovers WorkOS client id for native device login. */
+webRoutes.get(
+  "/v1/auth/config",
+  rateLimit({ name: "auth-config", windowMs: 60_000, max: 60 }),
+  (c) => {
+    const clientId = workosClientId();
+    if (!clientId || !workosConfigured()) {
+      return c.json({ error: "workos_not_configured" }, 503);
+    }
+    return c.json({
+      workosClientId: clientId,
+      workosApiBaseUrl: "https://api.workos.com",
+      authMode: "workos_jwt",
+    });
+  },
+);
+
+/** Public: exchange refresh token for a new WorkOS access token. */
+webRoutes.post(
+  "/v1/auth/refresh",
+  rateLimit({ name: "auth-refresh", windowMs: 60_000, max: 30 }),
+  async (c) => {
+    if (!workosConfigured()) {
+      return c.json({ error: "workos_not_configured" }, 503);
+    }
+    const body = await c.req.json<{ refresh_token?: string; organization_id?: string }>();
+    const refreshToken = body.refresh_token?.trim();
+    if (!refreshToken) return c.json({ error: "refresh_token required" }, 400);
+    try {
+      const result = await authenticateWithRefreshToken(refreshToken, body.organization_id);
+      let expiresIn = 300;
+      try {
+        const { decodeJwt } = await import("jose");
+        const claims = decodeJwt(result.accessToken);
+        if (typeof claims.exp === "number") {
+          expiresIn = Math.max(30, claims.exp - Math.floor(Date.now() / 1000));
+        }
+      } catch {
+        /* keep default */
+      }
+      return c.json({
+        access_token: result.accessToken,
+        refresh_token: result.refreshToken,
+        token_type: "bearer",
+        expires_in: expiresIn,
+        organization_id: result.organizationId ?? null,
+      });
+    } catch (err) {
+      console.warn("refresh failed", err);
+      return c.json({ error: "invalid_grant", message: "Refresh failed. Run workboard login again." }, 401);
+    }
+  },
+);
+
 /** Public: CLI version / update channel (no auth). */
 webRoutes.get(
   "/v1/cli/update",
@@ -467,181 +490,51 @@ webRoutes.get(
   },
 );
 
-// Device flow for CLI — WorkOS login, then explicit approve
+// Legacy custom device endpoints — CLI now uses WorkOS native device auth.
 webRoutes.post(
   "/v1/auth/device/code",
   rateLimit({ name: "device-code", windowMs: 60_000, max: 10 }),
   async (c) => {
-  const { deviceCode, userCode } = generateDeviceCodes();
-  const id = newId("dev");
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-  await db.insert(deviceCodes).values({
-    id,
-    deviceCode,
-    userCode,
-    expiresAt,
-  });
-  return c.json({
-    device_code: deviceCode,
-    user_code: userCode,
-    verification_uri: `${appUrl()}/device`,
-    verification_uri_complete: `${appUrl()}/device?user_code=${encodeURIComponent(userCode)}`,
-    expires_in: 900,
-    interval: 2,
-  });
-});
-
-async function approveDeviceLogin(opts: {
-  userId: string;
-  orgId: string;
-  userCode: string;
-}): Promise<{ ok: true } | { ok: false; error: string; status: 400 }> {
-  const rows = await db
-    .select()
-    .from(deviceCodes)
-    .where(and(eq(deviceCodes.userCode, opts.userCode), gt(deviceCodes.expiresAt, new Date())))
-    .limit(1);
-  const row = rows[0];
-  if (!row) return { ok: false, error: "Invalid or expired code", status: 400 };
-
-  const generated = generateApiToken();
-  await db.insert(apiTokens).values({
-    id: newId("tok"),
-    userId: opts.userId,
-    orgId: opts.orgId,
-    label: "cli-login",
-    tokenHash: generated.hash,
-    tokenPrefix: generated.prefix,
-  });
-
-  await db
-    .update(deviceCodes)
-    .set({
-      approved: true,
-      userId: opts.userId,
-      orgId: opts.orgId,
-      apiTokenPlain: generated.token,
-    })
-    .where(eq(deviceCodes.id, row.id));
-
-  return { ok: true };
-}
+    return c.json(
+      {
+        error: "deprecated",
+        message:
+          "Custom device login removed. Upgrade the CLI (workboard upgrade) — login uses WorkOS device auth + JWT.",
+      },
+      410,
+    );
+  },
+);
 
 webRoutes.get("/device", async (c) => {
-  const user = c.get("sessionUser");
-  const userCode = (c.req.query("user_code") ?? "").toUpperCase();
-  const next = `/device?user_code=${encodeURIComponent(userCode)}`;
-
-  if (!user) {
-    return c.redirect(`/login?next=${encodeURIComponent(next)}`);
-  }
-
-  let org = c.get("sessionOrg");
-  if (!org) {
-    const local = (await db.select().from(users).where(eq(users.id, user.id)).limit(1))[0];
-    if (local?.workosUserId) {
-      const synced = await syncWorkOSOrganizations(user.id, local.workosUserId);
-      const selected = pickDefaultOrg(synced);
-      if (selected) {
-        const sessionId = await createSession(user.id, selected.id);
-        setSessionCookie(c, sessionId);
-        org = { id: selected.id, slug: selected.slug, name: selected.name };
-      } else if (synced.length > 1) {
-        return c.html(devicePickOrgPage({ userCode, orgs: synced }));
-      } else {
-        return c.html(deviceNoOrgPage());
-      }
-    }
-  }
-
-  // Never approve on GET: an attacker could start `workboard login` themselves
-  // and phish a logged-in user into visiting the link. Approval requires the
-  // explicit POST below.
   return c.html(
-    deviceApprovePage({
-      email: user.email,
-      orgName: org?.name,
-      userCode,
-    }),
+    `<!doctype html><html><head><meta charset="utf-8"/><title>Workboard CLI login</title>
+    <style>body{font-family:system-ui;max-width:36rem;margin:3rem auto;padding:0 1rem;line-height:1.5}
+    code{background:#f4f4f5;padding:.1rem .35rem;border-radius:4px}</style></head><body>
+    <h1>CLI login</h1>
+    <p>The CLI uses <strong>WorkOS device authorization</strong> directly (AuthKit access JWT).</p>
+    <p>Run <code>workboard login</code> in your terminal and complete the WorkOS browser prompt shown there.</p>
+    <p>This custom <code>/device</code> approval page is no longer used.</p>
+    <p><a href="/">Back to Workboard</a></p>
+    </body></html>`,
   );
 });
 
-webRoutes.post(
-  "/device",
-  requireSession,
-  rateLimit({
-    name: "device-approve",
-    windowMs: 60_000,
-    max: 20,
-    key: (c) => c.get("sessionUser")?.id ?? "anon",
-  }),
-  async (c) => {
-  const user = c.get("sessionUser")!;
-  const body = await c.req.parseBody();
-  const userCode = String(body.user_code ?? "").toUpperCase();
-  let org = c.get("sessionOrg");
-
-  const orgIdOverride = String(body.org_id ?? "");
-  if (orgIdOverride) {
-    const memberRows = await db
-      .select()
-      .from(memberships)
-      .where(and(eq(memberships.userId, user.id), eq(memberships.orgId, orgIdOverride)))
-      .limit(1);
-    if (!memberRows[0]) return c.text("Forbidden", 403);
-    const orgRow = (
-      await db.select().from(organizations).where(eq(organizations.id, orgIdOverride)).limit(1)
-    )[0];
-    if (!orgRow) return c.text("Org not found", 404);
-    const sessionId = await createSession(user.id, orgRow.id);
-    setSessionCookie(c, sessionId);
-    org = { id: orgRow.id, slug: orgRow.slug, name: orgRow.name };
-  }
-
-  if (!org) {
-    return c.html(deviceMissingOrgPage({ userCode }));
-  }
-
-  const approved = await approveDeviceLogin({
-    userId: user.id,
-    orgId: org.id,
-    userCode,
-  });
-  if (!approved.ok) return c.text(approved.error, approved.status);
-
-  return c.html(
-    deviceApprovedPage({
-      email: user.email,
-      orgName: org.name,
-    }),
-  );
+webRoutes.post("/device", requireSession, async (c) => {
+  return c.redirect("/device");
 });
 
 webRoutes.post(
   "/v1/auth/device/token",
   rateLimit({ name: "device-token", windowMs: 60_000, max: 60 }),
   async (c) => {
-  const body = await c.req.json<{ device_code?: string }>();
-  const deviceCode = body.device_code;
-  if (!deviceCode) return c.json({ error: "device_code required" }, 400);
-
-  const rows = await db
-    .select()
-    .from(deviceCodes)
-    .where(eq(deviceCodes.deviceCode, deviceCode))
-    .limit(1);
-  const row = rows[0];
-  if (!row) return c.json({ error: "invalid device_code" }, 400);
-  if (row.expiresAt.getTime() < Date.now()) return c.json({ error: "expired" }, 400);
-  if (!row.approved || !row.apiTokenPlain) {
-    return c.json({ error: "authorization_pending" }, 403);
-  }
-
-  const token = row.apiTokenPlain;
-  await db
-    .update(deviceCodes)
-    .set({ apiTokenPlain: null })
-    .where(eq(deviceCodes.id, row.id));
-
-  return c.json({ access_token: token, token_type: "bearer" });
-});
+    return c.json(
+      {
+        error: "deprecated",
+        message:
+          "Custom device login removed. Upgrade the CLI — login uses WorkOS device auth + JWT.",
+      },
+      410,
+    );
+  },
+);
