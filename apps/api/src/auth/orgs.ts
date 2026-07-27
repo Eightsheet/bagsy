@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { memberships, organizations } from "../db/schema.js";
+import { memberships, organizations, users } from "../db/schema.js";
 import { newId, slugify } from "../lib/crypto.js";
 import { getWorkOS } from "./workos.js";
 import { ensureMembership } from "./middleware.js";
@@ -128,6 +128,44 @@ export async function listLocalOrgsForUser(localUserId: string) {
     .from(memberships)
     .innerJoin(organizations, eq(memberships.orgId, organizations.id))
     .where(eq(memberships.userId, localUserId));
+}
+
+export async function listMembersForOrg(orgId: string) {
+  return db
+    .select({
+      userId: users.id,
+      email: users.email,
+      name: users.name,
+      role: memberships.role,
+      joinedAt: memberships.createdAt,
+    })
+    .from(memberships)
+    .innerJoin(users, eq(memberships.userId, users.id))
+    .where(eq(memberships.orgId, orgId))
+    .orderBy(asc(memberships.createdAt));
+}
+
+/** Pending WorkOS invitations for an org (best-effort; empty if WorkOS unavailable). */
+export async function listPendingInvitations(workosOrgId: string | null | undefined) {
+  if (!workosOrgId) return [] as Array<{ email: string; state: string; id: string }>;
+  const workos = getWorkOS();
+  if (!workos) return [];
+  try {
+    const result = await workos.userManagement.listInvitations({
+      organizationId: workosOrgId,
+      limit: 50,
+    });
+    return result.data
+      .filter((inv) => inv.state === "pending")
+      .map((inv) => ({
+        id: inv.id,
+        email: inv.email,
+        state: inv.state,
+      }));
+  } catch (err) {
+    console.warn("listInvitations failed", err);
+    return [];
+  }
 }
 
 export function defaultOrgName(userName: string | null, userEmail: string | null): string {

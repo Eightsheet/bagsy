@@ -13,6 +13,8 @@ import {
   createWorkOSOrganizationAsAdmin,
   defaultOrgName,
   listLocalOrgsForUser,
+  listMembersForOrg,
+  listPendingInvitations,
   pickDefaultOrg,
   sendWorkOSOrgInvitation,
   syncWorkOSOrganizations,
@@ -116,12 +118,29 @@ webRoutes.get("/", async (c) => {
     ? await db.select().from(linkedRepos).where(eq(linkedRepos.orgId, org.id))
     : [];
 
+  let members: Array<{
+    userId: string;
+    email: string | null;
+    name: string | null;
+    role: string;
+  }> = [];
+  let pendingInvites: Array<{ email: string; state: string; id: string }> = [];
+  if (org) {
+    members = await listMembersForOrg(org.id);
+    const orgRow = (
+      await db.select().from(organizations).where(eq(organizations.id, org.id)).limit(1)
+    )[0];
+    pendingInvites = await listPendingInvitations(orgRow?.workosOrgId);
+  }
+
   return c.html(
     setupPage({
       user,
       org,
       orgs: memberOrgs,
       repos,
+      members,
+      pendingInvites,
       flash: c.req.query("ok") ? decodeURIComponent(c.req.query("ok")!) : null,
       error: c.req.query("err") ? decodeURIComponent(c.req.query("err")!) : null,
       defaultOrgName: defaultOrgName(user.name, user.email),
