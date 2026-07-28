@@ -275,7 +275,7 @@ export function setupPage(opts: {
 
   const accountConfirm = user.email ?? "delete my account";
   const dangerPanel = `
-    <section class="panel">
+    <section class="panel danger">
       <h2>Danger zone</h2>
       ${deleteTeamForm}
       <details class="quiet-details">
