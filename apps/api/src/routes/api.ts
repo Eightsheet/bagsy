@@ -13,6 +13,7 @@ import {
   listActiveClaims,
   releaseClaim,
   requireLinkedRepo,
+  startClaim,
 } from "../lib/claims.js";
 import { newId } from "../lib/crypto.js";
 import { verifyGithubRepoAccess } from "../lib/github.js";
@@ -93,6 +94,7 @@ const claimBody = z.object({
   note: z.string().max(1000).optional().nullable(),
   strict: z.boolean().optional(),
   steal: z.boolean().optional(),
+  planned: z.boolean().optional(),
   ttlSeconds: z.number().int().positive().max(24 * 60 * 60).optional(),
 });
 
@@ -122,13 +124,46 @@ apiRoutes.post("/v1/claims/current/release", async (c) => {
   const body = z
     .object({
       repo: z.string(),
+      resolvedRef: z.string().max(500).optional().nullable(),
     })
     .parse(await c.req.json());
   const current = await findActiveClaimForUser(auth.org.id, body.repo, auth.user.id);
   if (!current) return c.json({ error: "no active claim" }, 404);
-  const result = await releaseClaim(current.id, auth.user.id);
+  const result = await releaseClaim(current.id, auth.user.id, {
+    resolvedRef: body.resolvedRef ?? null,
+  });
   if ("error" in result) return c.json({ error: result.error }, result.status);
   return c.json({ claim: result.claim });
+});
+
+apiRoutes.post("/v1/claims/:id/start", async (c) => {
+  const auth = c.get("auth");
+  const body = z
+    .object({
+      ttlSeconds: z.number().int().positive().max(24 * 60 * 60).optional(),
+      steal: z.boolean().optional(),
+      branch: z.string().max(200).optional().nullable(),
+      agentLabel: z.string().max(200).optional().nullable(),
+    })
+    .parse((await c.req.json().catch(() => ({}))) ?? {});
+
+  const result = await startClaim(
+    c.req.param("id"),
+    {
+      userId: auth.user.id,
+      orgId: auth.org.id,
+      userEmail: auth.user.email,
+      userName: auth.user.name,
+    },
+    body,
+  );
+  if ("error" in result) {
+    return c.json(
+      { error: result.error, overlaps: "overlaps" in result ? result.overlaps : [] },
+      result.status,
+    );
+  }
+  return c.json(result);
 });
 
 apiRoutes.post("/v1/claims/:id/heartbeat", async (c) => {
@@ -147,7 +182,14 @@ apiRoutes.post("/v1/claims/:id/heartbeat", async (c) => {
 
 apiRoutes.post("/v1/claims/:id/release", async (c) => {
   const auth = c.get("auth");
-  const result = await releaseClaim(c.req.param("id"), auth.user.id);
+  const body = z
+    .object({
+      resolvedRef: z.string().max(500).optional().nullable(),
+    })
+    .parse((await c.req.json().catch(() => ({}))) ?? {});
+  const result = await releaseClaim(c.req.param("id"), auth.user.id, {
+    resolvedRef: body.resolvedRef ?? null,
+  });
   if ("error" in result) return c.json({ error: result.error }, result.status);
   return c.json({ claim: result.claim });
 });

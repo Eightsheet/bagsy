@@ -11,10 +11,16 @@ Team owns the board; repos are linked to a team; CLI picks team from `git remote
 
 ## Flow (required)
 
-1. `workboard status`
+1. `workboard status` — also shows the team's **Planned** queue; prefer picking one up (`workboard start <id>`) over inventing overlapping work
 2. Claim before editing: `workboard claim -t "title" -f path/one -f path/two`
 3. Longer sessions: `workboard heartbeat --note "…"` (also revives your own STALE claim)
-4. **Always release when finished, blocked, or switching:** `workboard release current`
+4. **Always release when finished, blocked, or switching:** `workboard release current --result <PR-URL-or-commit-SHA>` — the result link tells the team where the work landed
+
+## Planned claims (roadmap queue)
+
+- Queue future work with context: `workboard plan -t "title" -f path/one --desc "why + approach" [--roadmap REF]` — no TTL, never blocks anyone
+- Any team member (or their agent) activates it with `workboard start <id>`; the claim is reassigned to whoever starts it and gets a normal TTL
+- Claiming files you had planned auto-consumes your own planned entry
 
 ## Soft hold
 

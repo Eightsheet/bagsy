@@ -71,13 +71,17 @@ function toClaimRecord(
     userEmail: user.email,
     userName: user.name,
     status: row.status as ClaimRecord["status"],
+    resolvedRef: row.resolvedRef,
     startedAt: row.startedAt.toISOString(),
     expiresAt: row.expiresAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
 }
 
-/** Active + soft-held stale claims visible on the board. */
+/** Planned claims carry no real deadline; expiresAt is set far out and the lifecycle ignores them. */
+const PLANNED_HORIZON_SECONDS = 365 * 24 * 60 * 60;
+
+/** Active + soft-held stale + planned claims visible on the board. */
 export async function listBoardClaims(orgId: string, repo: string): Promise<ClaimRecord[]> {
   const normalized = normalizeRepo(repo);
   await refreshClaimLifecycle(orgId, normalized);
@@ -97,7 +101,11 @@ export async function listBoardClaims(orgId: string, repo: string): Promise<Clai
       and(
         eq(claims.orgId, orgId),
         eq(claims.repo, normalized),
-        or(eq(claims.status, "active"), eq(claims.status, "stale")),
+        or(
+          eq(claims.status, "active"),
+          eq(claims.status, "stale"),
+          eq(claims.status, "planned"),
+        ),
       ),
     );
 
@@ -146,6 +154,7 @@ export async function createClaim(input: {
   note?: string | null;
   strict?: boolean;
   steal?: boolean;
+  planned?: boolean;
   ttlSeconds?: number;
 }): Promise<
   | { claim: ClaimRecord; overlaps: OverlapInfo[]; stole?: string[] }
@@ -169,6 +178,39 @@ export async function createClaim(input: {
 
   const activeOverlaps = overlaps.filter((o) => o.status === "active");
   const staleOverlaps = overlaps.filter((o) => o.status === "stale");
+  const plannedOverlaps = overlaps.filter((o) => o.status === "planned");
+
+  // Planned = intent, not WIP: never blocks, never steals, no TTL pressure.
+  if (input.planned) {
+    const now = new Date();
+    const [row] = await db
+      .insert(claims)
+      .values({
+        id: newId("clm"),
+        orgId: input.orgId,
+        repo: linked.repo,
+        branch: input.branch ?? null,
+        title: input.title.trim(),
+        description: input.description ?? null,
+        files,
+        roadmapRef: input.roadmapRef ?? null,
+        agentLabel: input.agentLabel ?? null,
+        note: input.note ?? null,
+        userId: input.userId,
+        status: "planned",
+        startedAt: now,
+        expiresAt: new Date(now.getTime() + PLANNED_HORIZON_SECONDS * 1000),
+        updatedAt: now,
+      })
+      .returning();
+    return {
+      claim: toClaimRecord(row!, input.orgSlug, {
+        email: input.userEmail,
+        name: input.userName,
+      }),
+      overlaps,
+    };
+  }
 
   if (input.strict && activeOverlaps.length > 0) {
     return { error: "overlap detected (strict mode)", overlaps: activeOverlaps, status: 409 };
@@ -205,6 +247,18 @@ export async function createClaim(input: {
     await forceExpireClaims(uniqueSteal);
   }
 
+  // Claiming work you had queued consumes your own overlapping planned claims.
+  const ownPlannedIds = plannedOverlaps
+    .filter((o) => board.find((c) => c.id === o.claimId)?.userId === input.userId)
+    .map((o) => o.claimId);
+  if (ownPlannedIds.length > 0) {
+    const now = new Date();
+    await db
+      .update(claims)
+      .set({ status: "released", releasedAt: now, updatedAt: now })
+      .where(inArray(claims.id, ownPlannedIds));
+  }
+
   const ttl = input.ttlSeconds ?? DEFAULT_TTL_SECONDS;
   const now = new Date();
   const id = newId("clm");
@@ -234,8 +288,84 @@ export async function createClaim(input: {
       email: input.userEmail,
       name: input.userName,
     }),
-    overlaps: activeOverlaps,
+    overlaps: [
+      ...activeOverlaps,
+      ...plannedOverlaps.filter((o) => !ownPlannedIds.includes(o.claimId)),
+    ],
     stole: uniqueSteal.length ? uniqueSteal : undefined,
+  };
+}
+
+/**
+ * Activate a planned claim: it becomes active WIP with a real TTL.
+ * Any team member may start it — the claim is reassigned to the starter,
+ * so planned claims work as a shared queue.
+ */
+export async function startClaim(
+  claimId: string,
+  starter: { userId: string; orgId: string; userEmail: string | null; userName: string | null },
+  opts?: { ttlSeconds?: number; steal?: boolean; branch?: string | null; agentLabel?: string | null },
+) {
+  const rows = await db.select().from(claims).where(eq(claims.id, claimId)).limit(1);
+  const claim = rows[0];
+  if (!claim) return { error: "not found", status: 404 as const };
+  if (claim.orgId !== starter.orgId) return { error: "forbidden", status: 403 as const };
+  if (claim.status !== "planned") {
+    return { error: `claim is ${claim.status}, not planned`, status: 400 as const };
+  }
+
+  const board = await listBoardClaims(claim.orgId, claim.repo);
+  const overlaps = findOverlaps(
+    { title: claim.title, files: claim.files ?? [], roadmapRef: claim.roadmapRef },
+    board.filter((c) => c.id !== claim.id),
+  );
+  const staleOverlaps = overlaps.filter((o) => o.status === "stale");
+  const blockingStale = staleOverlaps.filter((o) => {
+    const row = board.find((c) => c.id === o.claimId);
+    return row?.userId !== starter.userId;
+  });
+  if (blockingStale.length > 0 && !opts?.steal) {
+    return {
+      error:
+        "soft_hold: overlapping claim went stale (agent may still have local WIP). Pass --steal to take over, or wait for soft hold to end.",
+      overlaps: blockingStale,
+      status: 409 as const,
+    };
+  }
+  const stealIds = staleOverlaps
+    .filter((o) => {
+      const row = board.find((c) => c.id === o.claimId);
+      return opts?.steal || row?.userId === starter.userId;
+    })
+    .map((o) => o.claimId);
+  if (stealIds.length > 0) {
+    await forceExpireClaims(stealIds);
+  }
+
+  const ttl = opts?.ttlSeconds ?? DEFAULT_TTL_SECONDS;
+  const now = new Date();
+  const [updated] = await db
+    .update(claims)
+    .set({
+      status: "active",
+      userId: starter.userId,
+      branch: opts?.branch !== undefined && opts?.branch !== null ? opts.branch : claim.branch,
+      agentLabel: opts?.agentLabel ?? claim.agentLabel,
+      startedAt: now,
+      expiresAt: new Date(now.getTime() + ttl * 1000),
+      updatedAt: now,
+    })
+    .where(eq(claims.id, claimId))
+    .returning();
+
+  const org = await db.select().from(organizations).where(eq(organizations.id, claim.orgId)).limit(1);
+  return {
+    claim: toClaimRecord(updated!, org[0]?.slug ?? "", {
+      email: starter.userEmail,
+      name: starter.userName,
+    }),
+    overlaps: overlaps.filter((o) => o.status === "active"),
+    stole: stealIds.length ? stealIds : undefined,
   };
 }
 
@@ -268,7 +398,11 @@ export async function heartbeatClaim(
   return { claim: updated! };
 }
 
-export async function releaseClaim(claimId: string, userId: string) {
+export async function releaseClaim(
+  claimId: string,
+  userId: string,
+  opts?: { resolvedRef?: string | null },
+) {
   const rows = await db.select().from(claims).where(eq(claims.id, claimId)).limit(1);
   const claim = rows[0];
   if (!claim) return { error: "not found", status: 404 as const };
@@ -279,6 +413,7 @@ export async function releaseClaim(claimId: string, userId: string) {
     .update(claims)
     .set({
       status: "released",
+      resolvedRef: opts?.resolvedRef ?? claim.resolvedRef,
       releasedAt: now,
       updatedAt: now,
     })

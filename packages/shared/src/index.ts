@@ -1,4 +1,4 @@
-export type ClaimStatus = "active" | "stale" | "released" | "expired";
+export type ClaimStatus = "active" | "stale" | "released" | "expired" | "planned";
 
 export interface ClaimInput {
   repo: string;
@@ -12,6 +12,8 @@ export interface ClaimInput {
   strict?: boolean;
   /** Take over overlapping stale claims. */
   steal?: boolean;
+  /** Queue as intent ("I'll take this next") instead of active WIP. No TTL, never blocks. */
+  planned?: boolean;
   ttlSeconds?: number;
 }
 
@@ -31,6 +33,8 @@ export interface ClaimRecord {
   userEmail: string | null;
   userName: string | null;
   status: ClaimStatus;
+  /** PR URL or commit SHA recorded on release — where the work ended up. */
+  resolvedRef: string | null;
   startedAt: string;
   expiresAt: string;
   updatedAt: string;
