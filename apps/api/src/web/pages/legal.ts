@@ -11,8 +11,8 @@ export function privacyPage(): string {
       </header>
 
       <h2>Who we are</h2>
-      <p>Bagsy is operated by [CONTROLLER NAME AND ADDRESS]. For anything privacy-related, contact
-      <a href="mailto:[CONTACT EMAIL]">[CONTACT EMAIL]</a>.</p>
+      <p>Bagsy is operated by Eightsheet. For anything privacy-related, reach us via
+      <a href="https://github.com/Eightsheet/bagsy/issues">GitHub issues</a>.</p>
 
       <h2>What we store</h2>
       <p><strong>Account.</strong> When you sign in via WorkOS AuthKit we store your email address,
@@ -46,7 +46,7 @@ export function privacyPage(): string {
       <h2>Your rights</h2>
       <p>Under the GDPR you can request access to, correction of, or deletion of your personal data,
       ask for a copy in a portable format, and lodge a complaint with a supervisory authority.
-      Contact us at <a href="mailto:[CONTACT EMAIL]">[CONTACT EMAIL]</a> for any of these.</p>
+      Reach us via <a href="https://github.com/Eightsheet/bagsy/issues">GitHub issues</a> for any of these.</p>
 
       <p class="meta" style="margin-top:24px">Last updated: 2026-07-28 · <a href="/">Back to Bagsy</a></p>
     </section>
