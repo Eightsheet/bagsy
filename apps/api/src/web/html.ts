@@ -161,6 +161,18 @@ h2 {
   animation: rise-in 520ms var(--ease) 60ms both;
 }
 
+.dict {
+  margin: 0 0 14px;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  border-left: 3px solid var(--ink);
+  padding-left: 12px;
+}
+
+.dict.animate {
+  animation: rise-in 520ms var(--ease) 30ms both;
+}
+
 .muted { color: var(--muted); }
 .warn { color: var(--ink); background: var(--highlight); padding: 2px 4px; }
 .ok { color: var(--ink); border: 1px solid var(--ink); padding: 8px 10px; margin: 0 0 14px; }
@@ -524,7 +536,7 @@ export function layout(
   body: string,
   opts?: { narrow?: boolean },
 ): string {
-  const pageTitle = title === "Workboard" ? "Workboard" : `${title} · Workboard`;
+  const pageTitle = title === "Bagsy" ? "Bagsy" : `${title} · Bagsy`;
   const mainClass = opts?.narrow ? "site-main narrow" : "site-main";
   return `<!doctype html>
 <html lang="en">
@@ -610,7 +622,7 @@ export function topbar(opts: {
 
   return `
     <header class="topbar">
-      <a class="topbar-brand" href="/">Workboard</a>
+      <a class="topbar-brand" href="/">Bagsy</a>
       <div class="topbar-meta">
         ${orgControl}
         <span class="topbar-user">${escapeHtml(label)}</span>

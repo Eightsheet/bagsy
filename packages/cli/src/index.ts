@@ -66,8 +66,10 @@ Usage:
   workboard login --token TOKEN
   workboard status [--repo owner/name] [--org slug]
   workboard claim -t TITLE [-f FILE ...] [--roadmap REF] [--branch B] [--strict] [--steal] [--note NOTE] [--org slug]
+  workboard plan -t TITLE [-f FILE ...] [--roadmap REF] [--note NOTE]   # queue intent — no TTL, never blocks
+  workboard start CLAIM_ID [--steal]   # activate a planned claim (yours or a teammate's)
   workboard heartbeat [--note NOTE] [--claim ID]
-  workboard release [claim-id|current] [--org slug]
+  workboard release [claim-id|current] [--result PR_URL_OR_SHA] [--org slug]
   workboard link-repo [owner/name] [--org slug]
   workboard init               # interactive: Claude Code / Codex / Cursor (skills only)
   workboard init --all
@@ -435,11 +437,12 @@ async function status(args: string[]) {
   console.log(`Team: ${res.json.org.name} (${res.json.org.slug})`);
   console.log(`Repo: ${repo}`);
   console.log(`Branch: ${detectBranch() ?? "unknown"}`);
-  if (!claims.length) {
+  const wip = claims.filter((c) => c.status !== "planned");
+  const planned = claims.filter((c) => c.status === "planned");
+  if (!wip.length) {
     console.log("No active claims.");
-    return;
   }
-  for (const claim of claims) {
+  for (const claim of wip) {
     console.log("---");
     const stale = claim.status === "stale" ? " [STALE — soft hold, may have local WIP]" : "";
     console.log(`# ${claim.id}${stale}`);
@@ -452,12 +455,27 @@ async function status(args: string[]) {
       `expires: ${claim.expiresAt}${claim.status === "stale" ? " (soft hold ~24h after)" : ""}`,
     );
   }
+  if (planned.length) {
+    console.log("");
+    console.log(`Planned (queued intent — pick up with: workboard start <id>):`);
+    for (const claim of planned) {
+      console.log("---");
+      console.log(`# ${claim.id} [PLANNED]`);
+      console.log(`${claim.title} — ${claim.userName ?? claim.userEmail ?? claim.userId}`);
+      if (claim.roadmapRef) console.log(`roadmap: ${claim.roadmapRef}`);
+      if (claim.files?.length) console.log(`files: ${claim.files.join(", ")}`);
+      if (claim.description) console.log(`context: ${claim.description}`);
+      if (claim.note) console.log(`note: ${claim.note}`);
+    }
+  }
 }
 
-async function claim(args: string[]) {
+async function claim(args: string[], opts?: { planned?: boolean }) {
   const cfg = loadConfig();
+  const planned = opts?.planned || hasFlag(args, "--planned");
+  const cmdName = planned ? "plan" : "claim";
   const title = argValue(args, "-t") ?? argValue(args, "--title");
-  if (!title) die("claim requires -t TITLE");
+  if (!title) die(`${cmdName} requires -t TITLE`);
   const files = [...argList(args, "-f"), ...argList(args, "--file")];
   const repo = detectRepo(argValue(args, "--repo"));
   const team = await resolveLinkedTeam(cfg, repo, argValue(args, "--org"));
@@ -469,12 +487,14 @@ async function claim(args: string[]) {
   const body = {
     title,
     files,
-    branch: argValue(args, "--branch") ?? detectBranch(),
+    description: argValue(args, "--desc") ?? argValue(args, "--description") ?? null,
+    branch: planned ? argValue(args, "--branch") ?? null : argValue(args, "--branch") ?? detectBranch(),
     roadmapRef: argValue(args, "--roadmap") ?? null,
     agentLabel: argValue(args, "--agent") ?? process.env.WORKBOARD_AGENT_LABEL ?? null,
     note: argValue(args, "--note") ?? null,
     strict: hasFlag(args, "--strict"),
     steal: hasFlag(args, "--steal"),
+    planned,
   };
   const res = await api(
     cfg,
@@ -494,11 +514,52 @@ async function claim(args: string[]) {
     console.error(JSON.stringify(res.json.overlaps, null, 2));
     process.exit(3);
   }
-  if (res.status !== 201) die(`claim failed (${res.status}): ${JSON.stringify(res.json)}`);
+  if (res.status !== 201) die(`${cmdName} failed (${res.status}): ${JSON.stringify(res.json)}`);
+  if (planned) {
+    console.log(`Planned ${res.json.claim.id}: ${res.json.claim.title}`);
+    console.log(`Team: ${team.name} (${team.slug})`);
+    console.log(`Pick it up later with: workboard start ${res.json.claim.id}`);
+  } else {
+    cfg.currentClaimId = res.json.claim.id;
+    saveConfig(cfg);
+    console.log(`Claimed ${res.json.claim.id}: ${res.json.claim.title}`);
+    console.log(`Team: ${team.name} (${team.slug})`);
+  }
+  if (res.json.stole?.length) {
+    console.log(`Stole soft-held claims: ${res.json.stole.join(", ")}`);
+  }
+  if (res.json.overlaps?.length) {
+    console.log("Warning: overlaps with existing claims:");
+    console.log(JSON.stringify(res.json.overlaps, null, 2));
+  }
+}
+
+async function start(args: string[]) {
+  const cfg = loadConfig();
+  const id = args.find((a) => !a.startsWith("-"));
+  if (!id) die("start requires a claim id: workboard start CLAIM_ID (see workboard status)");
+  const body = {
+    steal: hasFlag(args, "--steal"),
+    branch: argValue(args, "--branch") ?? detectBranch(),
+    agentLabel: argValue(args, "--agent") ?? process.env.WORKBOARD_AGENT_LABEL ?? null,
+  };
+  const res = await api(
+    cfg,
+    `/v1/claims/${id}/start`,
+    { method: "POST", body: JSON.stringify(body) },
+    argValue(args, "--org"),
+  );
+  if (res.status === 409) {
+    console.error("Soft hold — overlapping claim went stale (agent may still have local WIP):");
+    console.error(JSON.stringify(res.json.overlaps, null, 2));
+    console.error(`Take over with: workboard start ${id} --steal`);
+    process.exit(3);
+  }
+  if (res.status !== 200) die(`start failed (${res.status}): ${JSON.stringify(res.json)}`);
   cfg.currentClaimId = res.json.claim.id;
   saveConfig(cfg);
-  console.log(`Claimed ${res.json.claim.id}: ${res.json.claim.title}`);
-  console.log(`Team: ${team.name} (${team.slug})`);
+  console.log(`Started ${res.json.claim.id}: ${res.json.claim.title}`);
+  console.log(`expires: ${res.json.claim.expiresAt}`);
   if (res.json.stole?.length) {
     console.log(`Stole soft-held claims: ${res.json.stole.join(", ")}`);
   }
@@ -524,24 +585,34 @@ async function heartbeat(args: string[]) {
 async function release(args: string[]) {
   const cfg = loadConfig();
   const orgFlag = argValue(args, "--org");
+  const resolvedRef = argValue(args, "--result") ?? argValue(args, "--pr") ?? null;
   const positional = args.filter((a, i) => {
     if (a.startsWith("-")) return false;
     const prev = args[i - 1];
-    if (prev === "--org" || prev === "--repo" || prev === "--claim" || prev === "--note") return false;
+    if (
+      prev === "--org" ||
+      prev === "--repo" ||
+      prev === "--claim" ||
+      prev === "--note" ||
+      prev === "--result" ||
+      prev === "--pr"
+    )
+      return false;
     return true;
   });
   const target = positional[0] ?? "current";
+  const outcome = resolvedRef ? ` → ${resolvedRef}` : "";
 
   if (target === "current") {
     if (cfg.currentClaimId) {
       const res = await api(
         cfg,
         `/v1/claims/${cfg.currentClaimId}/release`,
-        { method: "POST" },
+        { method: "POST", body: JSON.stringify({ resolvedRef }) },
         orgFlag,
       );
       if (res.status !== 200) die(`release failed (${res.status}): ${JSON.stringify(res.json)}`);
-      console.log(`Released ${cfg.currentClaimId}`);
+      console.log(`Released ${cfg.currentClaimId}${outcome}`);
       cfg.currentClaimId = undefined;
       saveConfig(cfg);
       return;
@@ -552,20 +623,25 @@ async function release(args: string[]) {
     const res = await api(
       cfg,
       `/v1/claims/current/release`,
-      { method: "POST", body: JSON.stringify({ repo }) },
+      { method: "POST", body: JSON.stringify({ repo, resolvedRef }) },
       team.slug,
     );
     if (res.status !== 200) die(`release failed (${res.status}): ${JSON.stringify(res.json)}`);
-    console.log(`Released ${res.json.claim.id}`);
+    console.log(`Released ${res.json.claim.id}${outcome}`);
     return;
   }
-  const res = await api(cfg, `/v1/claims/${target}/release`, { method: "POST" }, orgFlag);
+  const res = await api(
+    cfg,
+    `/v1/claims/${target}/release`,
+    { method: "POST", body: JSON.stringify({ resolvedRef }) },
+    orgFlag,
+  );
   if (res.status !== 200) die(`release failed (${res.status}): ${JSON.stringify(res.json)}`);
   if (cfg.currentClaimId === target) {
     cfg.currentClaimId = undefined;
     saveConfig(cfg);
   }
-  console.log(`Released ${target}`);
+  console.log(`Released ${target}${outcome}`);
 }
 
 async function linkRepo(args: string[]) {
@@ -756,6 +832,12 @@ try {
       break;
     case "claim":
       await claim(rest);
+      break;
+    case "plan":
+      await claim(rest, { planned: true });
+      break;
+    case "start":
+      await start(rest);
       break;
     case "heartbeat":
       await heartbeat(rest);

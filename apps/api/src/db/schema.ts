@@ -89,6 +89,7 @@ export const claims = pgTable(
     roadmapRef: text("roadmap_ref"),
     agentLabel: text("agent_label"),
     note: text("note"),
+    resolvedRef: text("resolved_ref"),
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),

@@ -2,17 +2,19 @@ import { escapeHtml, layout } from "../html.js";
 
 export function landingPage(): string {
   return layout(
-    "Workboard",
+    "Bagsy",
     `
     <section class="hero">
       <header class="page-header">
-        <p class="brand-mark animate">Workboard</p>
-        <p class="meta">Teams · linked repos · claims in the CLI</p>
+        <p class="brand-mark animate">Bagsy</p>
+        <p class="meta">The claim board for agents and humans sharing a repo</p>
       </header>
+      <p class="dict animate"><strong>bagsy</strong> <span class="muted">/ˈbaɡzi/ · British, informal</span> — to claim something before anyone else does.</p>
       <p class="lede animate"><strong>Coordinate agents without double-ups.</strong> A team owns the board; repos are linked to that team; the CLI follows your git remote. Hosted API: <code>https://repo-org-production.up.railway.app</code> (CLI default).</p>
       <div class="hero-actions">
         <a class="btn" href="/login">Sign in</a>
         <a class="btn btn-secondary" href="#setup">Install CLI</a>
+        <a class="btn btn-secondary" href="https://github.com/Eightsheet/bagsy">GitHub</a>
       </div>
     </section>
 
@@ -22,7 +24,7 @@ export function landingPage(): string {
       <ol class="steps">
         <li>
           <strong>Install &amp; sign in</strong>
-          <span class="muted">Authenticate your machine against this Workboard.</span>
+          <span class="muted">Authenticate your machine against this Bagsy instance.</span>
           <code class="cmd">npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.9/workboard-cli-0.1.9.tgz</code>
           <code class="cmd">workboard login</code>
         </li>
@@ -65,7 +67,7 @@ export function loginPage(opts: { workosUrl: string | null }): string {
     <section class="focus-card">
       <header class="page-header">
         <h1>Sign in</h1>
-        <p class="meta">Workboard · WorkOS AuthKit</p>
+        <p class="meta">Bagsy · WorkOS AuthKit</p>
       </header>
       <p class="lede">Continue with WorkOS. Your teams sync automatically.</p>
       <p style="margin-top:16px"><a class="btn" href="${escapeHtml(opts.workosUrl)}">Continue with WorkOS</a></p>
@@ -119,7 +121,7 @@ export function noOrgPage(opts?: { defaultOrgName?: string }): string {
         <h1>Create your team</h1>
         <p class="meta">No WorkOS Dashboard needed</p>
       </header>
-      <p class="lede">Name the group you coordinate with and optionally invite someone. Workboard creates the WorkOS org and makes you admin.</p>
+      <p class="lede">Name the group you coordinate with and optionally invite someone. Bagsy creates the WorkOS org and makes you admin.</p>
       <form method="post" action="/orgs/create" class="stack" style="margin-top:14px">
         <label>
           Team name
