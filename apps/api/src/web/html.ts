@@ -20,6 +20,7 @@ export type ShellOrg = {
 
 const css = `
 :root {
+  color-scheme: light dark;
   --bg: #ffffff;
   --surface: #ffffff;
   --ink: #111111;
@@ -29,11 +30,34 @@ const css = `
   --line: #dddddd;
   --code-bg: #f0f0f0;
   --highlight: #ffe34d;
+  --highlight-strong: #fff176;
+  /* Ink printed ON the yellow. Stays dark in both schemes. */
+  --on-highlight: #111111;
   --danger: #c62828;
+  --danger-wash: #fdecea;
   --radius: 0px;
   --font: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Same poster, printed on black paper. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f0f10;
+    --surface: #141416;
+    --ink: #ededea;
+    --muted: #a8a49c;
+    --accent: #ededea;
+    --border: #ededea;
+    --line: #35353a;
+    --code-bg: #1c1c1f;
+    --highlight: #f2d13c;
+    --highlight-strong: #ffe34d;
+    --on-highlight: #111111;
+    --danger: #ff7b72;
+    --danger-wash: #2a1614;
+  }
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -51,7 +75,7 @@ body {
 }
 
 a { color: var(--ink); text-decoration: underline; text-underline-offset: 0.12em; }
-a:hover { background: var(--highlight); }
+a:hover { background: var(--highlight); color: var(--on-highlight); }
 
 .site {
   min-height: 100vh;
@@ -87,7 +111,7 @@ a:hover { background: var(--highlight); }
   letter-spacing: -0.01em;
 }
 
-.topbar-brand:hover { background: var(--highlight); }
+.topbar-brand:hover { background: var(--highlight); color: var(--on-highlight); }
 
 .topbar-meta {
   display: flex;
@@ -155,7 +179,7 @@ h2 {
   padding: 10px 12px;
   background: var(--highlight);
   max-width: none;
-  color: var(--ink);
+  color: var(--on-highlight);
 }
 
 .lede.animate {
@@ -176,7 +200,7 @@ h2 {
 }
 
 .panel.danger .quiet-details summary { color: var(--danger); }
-.panel.danger .quiet-details summary:hover { background: #fdecea; color: var(--danger); }
+.panel.danger .quiet-details summary:hover { background: var(--danger-wash); color: var(--danger); }
 
 .panel.danger button {
   background: transparent;
@@ -184,7 +208,7 @@ h2 {
   color: var(--danger);
 }
 
-.panel.danger button:hover { background: #fdecea; color: var(--danger); }
+.panel.danger button:hover { background: var(--danger-wash); color: var(--danger); }
 
 .site-footer {
   width: min(760px, calc(100% - 32px));
@@ -201,7 +225,7 @@ h2 {
 }
 
 .muted { color: var(--muted); }
-.warn { color: var(--ink); background: var(--highlight); padding: 2px 4px; }
+.warn { color: var(--on-highlight); background: var(--highlight); padding: 2px 4px; }
 .ok { color: var(--ink); border: 1px solid var(--ink); padding: 8px 10px; margin: 0 0 14px; }
 .split {
   display: grid;
@@ -236,7 +260,7 @@ h2 {
   font-weight: 600;
 }
 .quiet-details[open] summary::before { content: "– "; }
-.quiet-details summary:hover { background: var(--highlight); color: var(--ink); }
+.quiet-details summary:hover { background: var(--highlight); color: var(--on-highlight); }
 
 .hero {
   min-height: calc(100vh - 56px);
@@ -298,7 +322,7 @@ h2 {
   appearance: none;
   border: 1.5px solid var(--ink);
   background: var(--highlight);
-  color: var(--ink);
+  color: var(--on-highlight);
   padding: 8px 14px;
   border-radius: var(--radius);
   font: inherit;
@@ -314,8 +338,8 @@ h2 {
 }
 
 .btn:hover, button:hover {
-  background: #fff176;
-  color: var(--ink);
+  background: var(--highlight-strong);
+  color: var(--on-highlight);
   text-decoration: none;
 }
 
@@ -335,6 +359,7 @@ h2 {
 
 .btn-ghost:hover, button.ghost:hover {
   background: var(--highlight);
+  color: var(--on-highlight);
 }
 
 .btn-secondary, a.btn-secondary {
@@ -420,7 +445,7 @@ input, select {
   white-space: nowrap;
 }
 
-.badge.ok { background: var(--highlight); }
+.badge.ok { background: var(--highlight); color: var(--on-highlight); border-color: var(--ink); }
 
 .empty {
   padding: 8px 0 12px;
@@ -489,7 +514,7 @@ code, .mono {
 
 .cmd:hover { border-color: var(--ink); }
 .cmd:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.cmd.copied { background: var(--highlight); }
+.cmd.copied { background: var(--highlight); color: var(--on-highlight); border-color: var(--ink); }
 .cmd::after {
   content: "click to copy";
   float: right;
@@ -499,7 +524,7 @@ code, .mono {
   color: var(--muted);
   white-space: nowrap;
 }
-.cmd.copied::after { content: "copied"; color: var(--ink); font-weight: 700; }
+.cmd.copied::after { content: "copied"; color: var(--on-highlight); font-weight: 700; }
 
 .focus-card { margin-top: 24px; }
 
@@ -511,6 +536,7 @@ code, .mono {
   height: 28px;
   border: 1.5px solid var(--ink);
   background: var(--highlight);
+  color: var(--on-highlight);
   font-weight: 700;
   margin-bottom: 12px;
   animation: pop-in 360ms var(--ease) both;
@@ -524,20 +550,6 @@ code, .mono {
 @keyframes pop-in {
   from { opacity: 0; transform: scale(0.94); }
   to { opacity: 1; transform: scale(1); }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #111111;
-    --surface: #111111;
-    --ink: #f0f0f0;
-    --muted: #a0a0a0;
-    --accent: #f0f0f0;
-    --border: #f0f0f0;
-    --line: #333333;
-    --code-bg: #2a2a2a;
-    --highlight: #5c4a00;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
