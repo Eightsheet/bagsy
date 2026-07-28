@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Please report security issues privately to the repository owner via GitHub Security Advisories:
-https://github.com/Eightsheet/repo-org/security/advisories/new
+https://github.com/Eightsheet/bagsy/security/advisories/new
 
 Do not open a public issue for credential leaks, auth bypasses, or RCE.
 

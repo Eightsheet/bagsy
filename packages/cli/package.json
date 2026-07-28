@@ -1,6 +1,6 @@
 {
   "name": "workboard-cli",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "CLI for Workboard agent coordination — claim work on shared repos",
   "type": "module",
   "bin": {
@@ -21,12 +21,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Eightsheet/repo-org.git",
+    "url": "git+https://github.com/Eightsheet/bagsy.git",
     "directory": "packages/cli"
   },
-  "homepage": "https://github.com/Eightsheet/repo-org#readme",
+  "homepage": "https://github.com/Eightsheet/bagsy#readme",
   "bugs": {
-    "url": "https://github.com/Eightsheet/repo-org/issues"
+    "url": "https://github.com/Eightsheet/bagsy/issues"
   },
   "keywords": [
     "workboard",

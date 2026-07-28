@@ -25,7 +25,7 @@ export function landingPage(): string {
         <li>
           <strong>Install &amp; sign in</strong>
           <span class="muted">Authenticate your machine against this Bagsy instance.</span>
-          <code class="cmd">npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.9/workboard-cli-0.1.9.tgz</code>
+          <code class="cmd">npm install -g https://github.com/Eightsheet/bagsy/releases/download/v0.1.10/workboard-cli-0.1.10.tgz</code>
           <code class="cmd">workboard login</code>
         </li>
         <li>
