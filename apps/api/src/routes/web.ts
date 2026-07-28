@@ -36,6 +36,11 @@ import {
 } from "../db/schema.js";
 import { getCliUpdateInfo } from "../lib/cli-update.js";
 import { newId } from "../lib/crypto.js";
+import {
+  deleteAccountEverywhere,
+  deleteOrgEverywhere,
+  membershipRole,
+} from "../lib/deletion.js";
 import { appUrl, workosConfigured } from "../lib/env.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import {
@@ -44,6 +49,7 @@ import {
   loginPage,
   noOrgPage,
 } from "../web/pages/auth.js";
+import { privacyPage } from "../web/pages/legal.js";
 import { setupPage } from "../web/pages/setup.js";
 
 export const webRoutes = new Hono();
@@ -76,6 +82,8 @@ function isOrgSelectionError(err: unknown): err is {
 }
 
 webRoutes.get("/health", (c) => c.json({ ok: true }));
+
+webRoutes.get("/privacy", (c) => c.html(privacyPage()));
 
 webRoutes.get("/", async (c) => {
   const user = c.get("sessionUser");
@@ -372,6 +380,80 @@ webRoutes.post(
     );
   }
 });
+
+webRoutes.post(
+  "/orgs/delete",
+  requireSession,
+  rateLimit({
+    name: "org-delete",
+    windowMs: 60 * 60 * 1000,
+    max: 10,
+    key: (c) => c.get("sessionUser")?.id ?? "anon",
+  }),
+  async (c) => {
+    const user = c.get("sessionUser")!;
+    const org = c.get("sessionOrg");
+    if (!org) {
+      return c.redirect(`/?err=${encodeURIComponent("Pick the team to delete in the header first")}`);
+    }
+
+    const body = await c.req.parseBody();
+    const confirm = String(body.confirm ?? "").trim();
+    if (confirm !== org.slug) {
+      return c.redirect(
+        `/?err=${encodeURIComponent(`Type the team slug (${org.slug}) to confirm deletion`)}`,
+      );
+    }
+
+    const role = await membershipRole(org.id, user.id);
+    if (role !== "admin") {
+      return c.redirect(`/?err=${encodeURIComponent("Only team admins can delete a team")}`);
+    }
+
+    const result = await deleteOrgEverywhere(org.id);
+    if (!result.ok) {
+      return c.redirect(`/?err=${encodeURIComponent(result.error)}`);
+    }
+
+    const remaining = await listLocalOrgsForUser(user.id);
+    const next = remaining[0] ?? null;
+    const sessionId = await createSession(user.id, next?.id ?? null);
+    setSessionCookie(c, sessionId);
+    return c.redirect(
+      `/?ok=${encodeURIComponent(`Deleted team “${org.name}” — board, claims, and linked repos are gone`)}`,
+    );
+  },
+);
+
+webRoutes.post(
+  "/account/delete",
+  requireSession,
+  rateLimit({
+    name: "account-delete",
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    key: (c) => c.get("sessionUser")?.id ?? "anon",
+  }),
+  async (c) => {
+    const user = c.get("sessionUser")!;
+    const body = await c.req.parseBody();
+    const confirm = String(body.confirm ?? "").trim().toLowerCase();
+    const expected = (user.email ?? "delete my account").toLowerCase();
+    if (confirm !== expected) {
+      return c.redirect(
+        `/?err=${encodeURIComponent(`Type ${user.email ?? "“delete my account”"} to confirm account deletion`)}`,
+      );
+    }
+
+    const result = await deleteAccountEverywhere(user.id);
+    if (!result.ok) {
+      return c.redirect(`/?err=${encodeURIComponent(result.error)}`);
+    }
+
+    deleteCookie(c, "wb_session");
+    return c.redirect("/");
+  },
+);
 
 async function switchOrg(c: Context, slug: string) {
   const user = c.get("sessionUser")!;

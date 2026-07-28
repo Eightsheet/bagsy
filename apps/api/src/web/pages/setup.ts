@@ -256,6 +256,44 @@ export function setupPage(opts: {
     </section>
   `;
 
+  const deleteTeamForm = org
+    ? `
+      <details class="quiet-details">
+        <summary>Delete team “${escapeHtml(org.name)}”</summary>
+        <p class="muted" style="margin:10px 0 6px">Admins only. Removes the WorkOS organization, all memberships, linked repos, and every claim on this board — for everyone. This cannot be undone.</p>
+        <form method="post" action="/orgs/delete" class="stack" style="margin-top:8px">
+          <label>
+            Type the team slug <code>${escapeHtml(org.slug)}</code> to confirm
+            <input name="confirm" required autocomplete="off" placeholder="${escapeHtml(org.slug)}" />
+          </label>
+          <div class="row">
+            <button type="submit" class="ghost">Delete this team permanently</button>
+          </div>
+        </form>
+      </details>`
+    : "";
+
+  const accountConfirm = user.email ?? "delete my account";
+  const dangerPanel = `
+    <section class="panel">
+      <h2>Danger zone</h2>
+      ${deleteTeamForm}
+      <details class="quiet-details">
+        <summary>Delete my account</summary>
+        <p class="muted" style="margin:10px 0 6px">Deletes your WorkOS login, memberships, API tokens, and your claims. Teams where you are the only member are deleted too; teams with other members need another admin first. This cannot be undone.</p>
+        <form method="post" action="/account/delete" class="stack" style="margin-top:8px">
+          <label>
+            Type <code>${escapeHtml(accountConfirm)}</code> to confirm
+            <input name="confirm" required autocomplete="off" placeholder="${escapeHtml(accountConfirm)}" />
+          </label>
+          <div class="row">
+            <button type="submit" class="ghost">Delete my account permanently</button>
+          </div>
+        </form>
+      </details>
+    </section>
+  `;
+
   return layout(
     "Setup",
     `
@@ -266,6 +304,7 @@ export function setupPage(opts: {
     ${orgPanel}
     ${reposPanel}
     ${cliPanel}
+    ${dangerPanel}
   `,
   );
 }
