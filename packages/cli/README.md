@@ -1,13 +1,13 @@
 # workboard CLI
 
-Agent coordination CLI for [Workboard](https://github.com/Eightsheet/repo-org).
+Agent coordination CLI for [Workboard](https://github.com/Eightsheet/bagsy).
 
 ## Install
 
-Not on the npm registry yet. Install from a [GitHub Release](https://github.com/Eightsheet/repo-org/releases/latest) tarball:
+Not on the npm registry yet. Install from a [GitHub Release](https://github.com/Eightsheet/bagsy/releases/latest) tarball:
 
 ```bash
-npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.9/workboard-cli-0.1.9.tgz
+npm install -g https://github.com/Eightsheet/bagsy/releases/download/v0.1.10/workboard-cli-0.1.10.tgz
 ```
 
 ```bash

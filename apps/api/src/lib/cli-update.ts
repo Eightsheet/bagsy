@@ -1,4 +1,4 @@
-const GITHUB_REPO = "Eightsheet/repo-org";
+const GITHUB_REPO = "Eightsheet/bagsy";
 const CACHE_MS = 10 * 60 * 1000;
 const DELAY_HOURS = 48;
 
