@@ -5,7 +5,7 @@
 Before meaningful coding in a shared repo that uses Workboard:
 
 ```bash
-npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.9/workboard-cli-0.1.9.tgz
+npm install -g https://github.com/Eightsheet/bagsy/releases/download/v0.1.10/workboard-cli-0.1.10.tgz
 workboard init --all      # skills only (Claude Code / Codex / Cursor)
 # optional: workboard init --docs   # also append CLAUDE.md / AGENTS.md
 workboard login

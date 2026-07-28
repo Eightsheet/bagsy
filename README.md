@@ -22,10 +22,10 @@ The CLI talks to that URL by default. Override only if you run your own API: `WO
 
 ## Install CLI
 
-Install from the [GitHub Release](https://github.com/Eightsheet/repo-org/releases/latest) tarball (not on the npm registry yet):
+Install from the [GitHub Release](https://github.com/Eightsheet/bagsy/releases/latest) tarball (not on the npm registry yet):
 
 ```bash
-npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.9/workboard-cli-0.1.9.tgz
+npm install -g https://github.com/Eightsheet/bagsy/releases/download/v0.1.10/workboard-cli-0.1.10.tgz
 ```
 
 Then:

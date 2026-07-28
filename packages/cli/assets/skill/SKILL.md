@@ -32,5 +32,5 @@ After ~2h without heartbeat a claim becomes **STALE** (still held ~24h). Others 
 - Soft-hold conflict → explain STALE / possible local WIP; use `--steal` only with user OK.
 - Not linked (status exit 2) → `workboard link-repo` once.
 - Multi-team ambiguity → `--org <slug>` (non-interactive).
-- Not logged in → `workboard login` (WorkOS device auth + JWT). Install: `npm install -g https://github.com/Eightsheet/repo-org/releases/download/v0.1.9/workboard-cli-0.1.9.tgz`
+- Not logged in → `workboard login` (WorkOS device auth + JWT). Install: `npm install -g https://github.com/Eightsheet/bagsy/releases/download/v0.1.10/workboard-cli-0.1.10.tgz`
 - Wire skills: `workboard init --all` (optional `--docs`). Override API: `WORKBOARD_API_URL`.
