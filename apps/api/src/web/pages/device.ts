@@ -42,10 +42,10 @@ export function deviceNoOrgPage(): string {
     <section class="focus-card">
       <header class="page-header">
         <h1>No team yet</h1>
-        <p class="meta">Create one in Workboard first</p>
+        <p class="meta">Create one in Bagsy first</p>
       </header>
       <p class="lede">Open the site, create a team (and optionally invite a teammate), then retry <code>workboard login</code>.</p>
-      <p style="margin-top:14px"><a class="btn" href="/">Open Workboard</a></p>
+      <p style="margin-top:14px"><a class="btn" href="/">Open Bagsy</a></p>
     </section>
   `,
     { narrow: true },

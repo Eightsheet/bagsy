@@ -508,14 +508,14 @@ webRoutes.post(
 
 webRoutes.get("/device", async (c) => {
   return c.html(
-    `<!doctype html><html><head><meta charset="utf-8"/><title>Workboard CLI login</title>
+    `<!doctype html><html><head><meta charset="utf-8"/><title>Bagsy CLI login</title>
     <style>body{font-family:system-ui;max-width:36rem;margin:3rem auto;padding:0 1rem;line-height:1.5}
     code{background:#f4f4f5;padding:.1rem .35rem;border-radius:4px}</style></head><body>
     <h1>CLI login</h1>
     <p>The CLI uses <strong>WorkOS device authorization</strong> directly (AuthKit access JWT).</p>
     <p>Run <code>workboard login</code> in your terminal and complete the WorkOS browser prompt shown there.</p>
     <p>This custom <code>/device</code> approval page is no longer used.</p>
-    <p><a href="/">Back to Workboard</a></p>
+    <p><a href="/">Back to Bagsy</a></p>
     </body></html>`,
   );
 });
