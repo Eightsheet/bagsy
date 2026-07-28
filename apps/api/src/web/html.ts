@@ -29,6 +29,7 @@ const css = `
   --line: #dddddd;
   --code-bg: #f0f0f0;
   --highlight: #ffe34d;
+  --danger: #c62828;
   --radius: 0px;
   --font: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -167,6 +168,32 @@ h2 {
   line-height: 1.45;
   border-left: 3px solid var(--ink);
   padding-left: 12px;
+}
+
+.panel.danger h2 {
+  color: var(--danger);
+  border-top-color: var(--danger);
+}
+
+.panel.danger .quiet-details summary { color: var(--danger); }
+.panel.danger .quiet-details summary:hover { background: #fdecea; color: var(--danger); }
+
+.panel.danger button {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.panel.danger button:hover { background: #fdecea; color: var(--danger); }
+
+.site-footer {
+  width: min(760px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 14px 0 22px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
 }
 
 .dict.animate {
@@ -549,6 +576,9 @@ export function layout(
 <body>
   <div class="site">
     <main class="${mainClass}">${body}</main>
+    <footer class="site-footer">
+      <a href="https://github.com/Eightsheet/bagsy">GitHub</a> · <a href="https://github.com/Eightsheet/bagsy/issues">Support</a> · <a href="/privacy">Privacy</a>
+    </footer>
   </div>
   <script>
   (function () {
