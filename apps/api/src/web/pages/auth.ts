@@ -39,9 +39,6 @@ export function landingPage(): string {
           <code class="cmd">workboard claim -t "…" -f path/a</code>
         </li>
       </ol>
-      <p class="meta" style="margin-top:32px">
-        <a href="https://github.com/Eightsheet/bagsy">GitHub</a> · <a href="https://github.com/Eightsheet/bagsy/issues">Support</a> · <a href="/privacy">Privacy</a>
-      </p>
     </section>
   `,
   );
