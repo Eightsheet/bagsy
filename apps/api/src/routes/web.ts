@@ -591,8 +591,11 @@ webRoutes.post(
 webRoutes.get("/device", async (c) => {
   return c.html(
     `<!doctype html><html><head><meta charset="utf-8"/><title>Bagsy CLI login</title>
-    <style>body{font-family:system-ui;max-width:36rem;margin:3rem auto;padding:0 1rem;line-height:1.5}
-    code{background:#f4f4f5;padding:.1rem .35rem;border-radius:4px}</style></head><body>
+    <style>:root{color-scheme:light dark;--bg:#ffffff;--ink:#111111;--code-bg:#f4f4f5}
+    @media (prefers-color-scheme: dark){:root{--bg:#0f0f10;--ink:#ededea;--code-bg:#1c1c1f}}
+    body{font-family:system-ui;max-width:36rem;margin:3rem auto;padding:0 1rem;line-height:1.5;background:var(--bg);color:var(--ink)}
+    a{color:var(--ink)}
+    code{background:var(--code-bg);padding:.1rem .35rem;border-radius:4px}</style></head><body>
     <h1>CLI login</h1>
     <p>The CLI uses <strong>WorkOS device authorization</strong> directly (AuthKit access JWT).</p>
     <p>Run <code>workboard login</code> in your terminal and complete the WorkOS browser prompt shown there.</p>
