@@ -53,9 +53,6 @@ import {
 import { appUrl, workosConfigured } from "../lib/env.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { workosSessionIdFromAccessToken } from "../lib/workos-jwt.js";
-import { landingPage, loginPage, noOrgPage } from "../web/pages/auth.js";
-import { privacyPage } from "../web/pages/legal.js";
-import { setupPage } from "../web/pages/setup.js";
 
 export const webRoutes = new Hono();
 
@@ -105,18 +102,42 @@ function rememberLastOrg(c: Context, workosOrgId: string | null | undefined) {
 
 webRoutes.get("/health", (c) => c.json({ ok: true }));
 
-webRoutes.get("/privacy", (c) => c.html(privacyPage()));
+// The HTML UI lives in the @bagsy/web Worker, which proxies everything that
+// needs a session or the DB back here. Direct visits to the API root are sent
+// to the web app when APP_URL points at it — unless APP_URL still points at
+// this API itself (pre-cutover), which would redirect-loop.
+webRoutes.get("/", (c) => {
+  const web = process.env.APP_URL ? appUrl() : null;
+  const selfHost = c.req.header("x-forwarded-host") ?? c.req.header("host");
+  if (web && selfHost && new URL(web).host !== selfHost) {
+    return c.redirect(web);
+  }
+  return c.json({ ok: true, service: "bagsy-api" });
+});
 
-webRoutes.get("/", async (c) => {
+/** Session-scoped data behind the web UI's setup page (rendered by @bagsy/web). */
+webRoutes.get("/v1/web/state", async (c) => {
   const user = c.get("sessionUser");
   const org = c.get("sessionOrg");
   if (!user) {
-    return c.html(landingPage());
+    return c.json({
+      user: null,
+      org: null,
+      orgs: [],
+      repos: [],
+      members: [],
+      pendingInvites: [],
+      canManage: false,
+      defaultOrgName: "",
+    });
   }
 
   const memberOrgs = await listLocalOrgsForUser(user.id);
   const repos = org
-    ? await db.select().from(linkedRepos).where(eq(linkedRepos.orgId, org.id))
+    ? await db
+        .select({ repo: linkedRepos.repo, verifiedAt: linkedRepos.verifiedAt })
+        .from(linkedRepos)
+        .where(eq(linkedRepos.orgId, org.id))
     : [];
 
   let members: Array<{
@@ -136,20 +157,16 @@ webRoutes.get("/", async (c) => {
 
   const canManage = members.some((m) => m.userId === user.id && m.role === "admin");
 
-  return c.html(
-    setupPage({
-      user,
-      org,
-      orgs: memberOrgs,
-      repos,
-      members,
-      pendingInvites,
-      canManage,
-      flash: c.req.query("ok") ? decodeURIComponent(c.req.query("ok")!) : null,
-      error: c.req.query("err") ? decodeURIComponent(c.req.query("err")!) : null,
-      defaultOrgName: defaultOrgName(user.name, user.email),
-    }),
-  );
+  return c.json({
+    user,
+    org,
+    orgs: memberOrgs,
+    repos,
+    members,
+    pendingInvites,
+    canManage,
+    defaultOrgName: defaultOrgName(user.name, user.email),
+  });
 });
 
 webRoutes.get("/login", (c) => {
@@ -157,15 +174,13 @@ webRoutes.get("/login", (c) => {
   const state = next ? `next:${next}` : undefined;
   const workosUrl = getAuthKitUrl(`${appUrl()}/auth/callback`, { state });
   if (!workosUrl) {
-    return c.html(loginPage({ workosUrl: null }), 503);
+    // The web Worker renders its "sign in unavailable" page on this 503.
+    return c.json({ error: "workos_not_configured" }, 503);
   }
 
-  // Prefer immediate redirect for CLI/device flows
-  if (next?.startsWith("/device")) {
-    return c.redirect(workosUrl);
-  }
-
-  return c.html(loginPage({ workosUrl }));
+  // Straight to AuthKit. The old interstitial "Continue with WorkOS" page was a
+  // redundant second click before the same redirect device/CLI flows already did.
+  return c.redirect(workosUrl);
 });
 
 webRoutes.get("/auth/callback", async (c) => {
@@ -240,7 +255,8 @@ async function finishAuth(
     return c.redirect("/?pick=1");
   }
   if (!selected && synced.length === 0) {
-    return c.html(noOrgPage({ defaultOrgName: defaultOrgName(userRow.name, userRow.email) }));
+    // The web Worker renders the "create your team" page for this flag.
+    return c.redirect("/?noorg=1");
   }
   return c.redirect("/");
 }
@@ -714,23 +730,7 @@ webRoutes.post(
   },
 );
 
-webRoutes.get("/device", async (c) => {
-  return c.html(
-    `<!doctype html><html><head><meta charset="utf-8"/><title>Bagsy CLI login</title>
-    <style>:root{color-scheme:light dark;--bg:#ffffff;--ink:#111111;--code-bg:#f4f4f5}
-    @media (prefers-color-scheme: dark){:root{--bg:#0f0f10;--ink:#ededea;--code-bg:#1c1c1f}}
-    body{font-family:system-ui;max-width:36rem;margin:3rem auto;padding:0 1rem;line-height:1.5;background:var(--bg);color:var(--ink)}
-    a{color:var(--ink)}
-    code{background:var(--code-bg);padding:.1rem .35rem;border-radius:4px}</style></head><body>
-    <h1>CLI login</h1>
-    <p>The CLI uses <strong>WorkOS device authorization</strong> directly (AuthKit access JWT).</p>
-    <p>Run <code>bagsy login</code> in your terminal and complete the WorkOS browser prompt shown there.</p>
-    <p>This custom <code>/device</code> approval page is no longer used.</p>
-    <p><a href="/">Back to Bagsy</a></p>
-    </body></html>`,
-  );
-});
-
+// GET /device is a static page served by the web Worker.
 webRoutes.post("/device", requireSession, async (c) => {
   return c.redirect("/device");
 });

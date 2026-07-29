@@ -793,9 +793,7 @@ async function linkRepo(args: string[]) {
     die(`link-repo failed (${res.status}): ${JSON.stringify(res.json)}`);
   }
   const verb = res.status === 201 ? "Linked" : "Updated";
-  console.log(
-    `${verb} ${res.json.repo.repo} → ${team.name} (${team.slug})${res.json.verified ? " (verified)" : " (unverified)"}`,
-  );
+  console.log(`${verb} ${res.json.repo.repo} → ${team.name} (${team.slug})`);
 }
 
 async function whoami() {
