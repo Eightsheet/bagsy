@@ -145,7 +145,13 @@ webRoutes.get("/", async (c) => {
 webRoutes.get("/login", (c) => {
   const next = c.req.query("next");
   const state = next ? `next:${next}` : undefined;
-  const workosUrl = getAuthKitUrl(`${appUrl()}/auth/callback`, { state });
+  // A returning browser carries the org it last used. Pre-select it so AuthKit
+  // signs straight into that team instead of showing its hosted org picker —
+  // teams are switched in the dashboard anyway, so this only sets the entry
+  // point. Logout clears the cookie, so a fresh sign-in falls back to no org
+  // (and the callback resolves the org itself when several remain).
+  const organizationId = getCookie(c, LAST_ORG_COOKIE) || undefined;
+  const workosUrl = getAuthKitUrl(`${appUrl()}/auth/callback`, { state, organizationId });
   if (!workosUrl) {
     return c.html(loginPage({ workosUrl: null }), 503);
   }
