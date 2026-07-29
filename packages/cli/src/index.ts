@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { parseGitRemoteUrl } from "@repo-org/shared";
+import { parseGitRemoteUrl } from "@bagsy/shared";
 import {
   CLI_VERSION,
   fetchCliUpdate,
@@ -784,6 +784,11 @@ async function init(args: string[]) {
     mkdirSync(skillDir, { recursive: true });
     writeFileSync(skillPath, skillBody);
     console.log(`Wrote ${skillPath}`);
+    const legacyDir = join(skillDir, "..", "workboard");
+    if (existsSync(legacyDir)) {
+      rmSync(legacyDir, { recursive: true, force: true });
+      console.log(`Removed legacy ${relDir.replace(/bagsy$/, "workboard")}`);
+    }
   }
 
   function upsertDoc(filename: string) {
@@ -822,6 +827,39 @@ async function init(args: string[]) {
   console.log(`Done: ${selected.join(", ")}${writeDocs ? " (+ docs)" : ""}`);
 }
 
+/**
+ * Keep repo-installed skills in sync with the running CLI: wherever a bagsy
+ * (or legacy workboard) skill is already installed, rewrite it with the
+ * embedded version and drop the legacy directory. Never installs anew —
+ * that stays opt-in via `bagsy init`.
+ */
+function refreshSkills(): void {
+  if (!SKILL_MD) return;
+  const root = git("git rev-parse --show-toplevel 2>/dev/null");
+  if (!root) return;
+  const body = SKILL_MD.endsWith("\n") ? SKILL_MD : `${SKILL_MD}\n`;
+  for (const base of [".claude/skills", ".agents/skills", ".cursor/skills"]) {
+    try {
+      const dir = join(root, ...base.split("/"), "bagsy");
+      const path = join(dir, "SKILL.md");
+      const legacyDir = join(root, ...base.split("/"), "workboard");
+      const wired = existsSync(path) || existsSync(join(legacyDir, "SKILL.md"));
+      if (!wired) continue;
+      if (!existsSync(path) || readFileSync(path, "utf8") !== body) {
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(path, body);
+        console.error(`Updated ${base}/bagsy/SKILL.md to CLI ${CLI_VERSION}`);
+      }
+      if (existsSync(legacyDir)) {
+        rmSync(legacyDir, { recursive: true, force: true });
+        console.error(`Removed legacy ${base}/workboard`);
+      }
+    } catch {
+      // skill refresh must never break the actual command
+    }
+  }
+}
+
 if ((process.argv[1] ?? "").split("/").pop() === "workboard") {
   console.error("Note: workboard is now bagsy — the workboard alias will go away in a future release.");
 }
@@ -832,6 +870,7 @@ if (!cmd || cmd === "-h" || cmd === "--help") usage();
 try {
   if (cmd !== "upgrade" && cmd !== "update" && cmd !== "version" && cmd !== "-v" && cmd !== "--version") {
     await maybeAutoUpdate(loadConfig());
+    if (cmd !== "init") refreshSkills();
   }
 
   switch (cmd) {

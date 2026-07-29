@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
-import { normalizeRepo } from "@repo-org/shared";
+import { normalizeRepo } from "@bagsy/shared";
 import { requireApiAuth } from "../auth/middleware.js";
 import { listLocalOrgsForUser } from "../auth/orgs.js";
 import { db } from "../db/client.js";

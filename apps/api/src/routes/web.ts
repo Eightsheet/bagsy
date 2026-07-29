@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { deleteCookie } from "hono/cookie";
 import { and, eq } from "drizzle-orm";
-import { normalizeRepo } from "@repo-org/shared";
+import { normalizeRepo } from "@bagsy/shared";
 import {
   createSession,
   loadSession,

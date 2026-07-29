@@ -60,7 +60,7 @@ export async function requireApiAuth(c: Context, next: Next) {
   }
 
   const user = await ensureLocalUserFromWorkOsSub(claims.sub);
-  const orgOverride = (c.req.header("x-workboard-org") ?? "").trim();
+  const orgOverride = (c.req.header("x-bagsy-org") ?? c.req.header("x-workboard-org") ?? "").trim();
   const org = await resolveOrgForApiUser({
     localUserId: user.id,
     workosUserId: claims.sub,
@@ -75,7 +75,7 @@ export async function requireApiAuth(c: Context, next: Next) {
     return c.json(
       {
         error: "no_organization",
-        message: "No team selected. Open the web UI to create/join a team, or pass X-Workboard-Org.",
+        message: "No team selected. Open the web UI to create/join a team, or pass X-Bagsy-Org.",
         user,
       },
       403,

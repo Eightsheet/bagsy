@@ -1,5 +1,5 @@
 {
-  "name": "@repo-org/api",
+  "name": "@bagsy/api",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.14.1",
-    "@repo-org/shared": "workspace:*",
+    "@bagsy/shared": "workspace:*",
     "@workos-inc/node": "^7.54.0",
     "drizzle-orm": "^0.41.0",
     "hono": "^4.7.5",
