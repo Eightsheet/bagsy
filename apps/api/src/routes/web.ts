@@ -128,6 +128,7 @@ webRoutes.get("/v1/web/state", async (c) => {
       members: [],
       pendingInvites: [],
       canManage: false,
+      selfRole: null,
       defaultOrgName: "",
     });
   }
@@ -155,7 +156,8 @@ webRoutes.get("/v1/web/state", async (c) => {
     pendingInvites = await listPendingInvitations(orgRow?.workosOrgId);
   }
 
-  const canManage = members.some((m) => m.userId === user.id && m.role === "admin");
+  const selfRole = members.find((m) => m.userId === user.id)?.role ?? null;
+  const canManage = selfRole === "admin" || selfRole === "owner";
 
   return c.json({
     user,
@@ -165,6 +167,7 @@ webRoutes.get("/v1/web/state", async (c) => {
     members,
     pendingInvites,
     canManage,
+    selfRole,
     defaultOrgName: defaultOrgName(user.name, user.email),
   });
 });
@@ -405,7 +408,7 @@ webRoutes.post(
     } else {
       // Inviting into an existing team is an admin action, like remove/role.
       const role = await membershipRole(active.id, user.id);
-      if (role !== "admin") {
+      if (role !== "admin" && role !== "owner") {
         return c.redirect(
           `/?err=${encodeURIComponent("Only team admins can invite members")}`,
         );
@@ -458,16 +461,17 @@ webRoutes.post(
     }
 
     const body = await c.req.parseBody();
-    const confirm = String(body.confirm ?? "").trim();
-    if (confirm !== org.slug) {
+    const confirm = String(body.confirm ?? "").trim().toLowerCase();
+    const expected = `delete ${org.slug}`.toLowerCase();
+    if (confirm !== expected) {
       return c.redirect(
-        `/?err=${encodeURIComponent(`Type the team slug (${org.slug}) to confirm deletion`)}`,
+        `/?err=${encodeURIComponent(`Type “delete ${org.slug}” to confirm deletion`)}`,
       );
     }
 
     const role = await membershipRole(org.id, user.id);
-    if (role !== "admin") {
-      return c.redirect(`/?err=${encodeURIComponent("Only team admins can delete a team")}`);
+    if (role !== "owner") {
+      return c.redirect(`/?err=${encodeURIComponent("Only the team owner can delete a team")}`);
     }
 
     const result = await deleteOrgEverywhere(org.id);
@@ -497,10 +501,10 @@ webRoutes.post(
     const user = c.get("sessionUser")!;
     const body = await c.req.parseBody();
     const confirm = String(body.confirm ?? "").trim().toLowerCase();
-    const expected = (user.email ?? "delete my account").toLowerCase();
+    const expected = (user.email ? `delete ${user.email}` : "delete my account").toLowerCase();
     if (confirm !== expected) {
       return c.redirect(
-        `/?err=${encodeURIComponent(`Type ${user.email ?? "“delete my account”"} to confirm account deletion`)}`,
+        `/?err=${encodeURIComponent(`Type “${user.email ? `delete ${user.email}` : "delete my account"}” to confirm account deletion`)}`,
       );
     }
 

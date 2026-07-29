@@ -25,17 +25,21 @@ async function loadMembership(orgId: string, userId: string) {
   )[0];
 }
 
-async function adminCount(orgId: string): Promise<number> {
+/** Owners count as leadership too — a team with an owner is never stranded. */
+async function leadershipCount(orgId: string): Promise<number> {
   const rows = await db
-    .select({ id: memberships.id })
+    .select({ role: memberships.role })
     .from(memberships)
-    .where(and(eq(memberships.orgId, orgId), eq(memberships.role, "admin")));
-  return rows.length;
+    .where(eq(memberships.orgId, orgId));
+  return rows.filter((r) => r.role === "admin" || r.role === "owner").length;
 }
 
 /** Removing/demoting the sole admin would strand the team with nobody in charge. */
 async function wouldStrandAdmins(orgId: string, targetRole: string): Promise<boolean> {
-  return targetRole === "admin" && (await adminCount(orgId)) <= 1;
+  return (
+    (targetRole === "admin" || targetRole === "owner") &&
+    (await leadershipCount(orgId)) <= 1
+  );
 }
 
 /** WorkOS membership id for a (org, user) pair — needed to mutate it remotely. */
@@ -68,6 +72,13 @@ export async function removeOrgMember(input: {
 
   const target = await loadMembership(input.orgId, input.targetUserId);
   if (!target) return { ok: false, error: "not a member of this team" };
+
+  if (target.role === "owner") {
+    return {
+      ok: false,
+      error: "The team owner can’t be removed. Owners delete the team instead.",
+    };
+  }
 
   if (await wouldStrandAdmins(input.orgId, target.role)) {
     return {
@@ -112,6 +123,9 @@ export async function changeOrgMemberRole(input: {
 
   const target = await loadMembership(input.orgId, input.targetUserId);
   if (!target) return { ok: false, error: "not a member of this team" };
+  if (target.role === "owner") {
+    return { ok: false, error: "The team owner’s role can’t be changed." };
+  }
   if (target.role === input.role) return { ok: true };
 
   // Demoting the last admin is the same stranding risk as removing them.

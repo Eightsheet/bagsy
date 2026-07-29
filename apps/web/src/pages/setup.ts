@@ -21,6 +21,7 @@ export function setupPage(opts: {
   members?: SetupMember[];
   pendingInvites?: SetupPendingInvite[];
   canManage?: boolean;
+  selfRole?: string | null;
   flash?: string | null;
   error?: string | null;
   defaultOrgName: string;
@@ -33,6 +34,7 @@ export function setupPage(opts: {
     members = [],
     pendingInvites = [],
     canManage = false,
+    selfRole = null,
     flash,
     error,
     defaultOrgName,
@@ -58,20 +60,25 @@ export function setupPage(opts: {
                   const isAdmin = m.role === "admin";
                   // Admins manage everyone but themselves here; self-actions live
                   // in the danger zone (Leave team) to avoid an accidental click.
+                  // Opening the disclosure is the are-you-sure step — the actions
+                  // inside say exactly what happens to whom. The owner is off
+                  // limits for everyone.
                   const actions =
-                    canManage && !isSelf
-                      ? `<span class="member-actions" style="display:inline-flex;gap:6px">
-                           <form method="post" action="/orgs/members/role" style="display:inline">
-                             <input type="hidden" name="user_id" value="${escapeHtml(m.userId)}" />
-                             <input type="hidden" name="role" value="${isAdmin ? "member" : "admin"}" />
-                             <button type="submit" class="link-btn">${isAdmin ? "Make member" : "Make admin"}</button>
-                           </form>
-                           <form method="post" action="/orgs/members/remove" style="display:inline"
-                                 onsubmit="return confirm('Remove this member from the team?')">
-                             <input type="hidden" name="user_id" value="${escapeHtml(m.userId)}" />
-                             <button type="submit" class="link-btn danger">Remove</button>
-                           </form>
-                         </span>`
+                    canManage && !isSelf && m.role !== "owner"
+                      ? `<details class="row-manage">
+                           <summary>Manage</summary>
+                           <div class="row-manage-actions">
+                             <form method="post" action="/orgs/members/role">
+                               <input type="hidden" name="user_id" value="${escapeHtml(m.userId)}" />
+                               <input type="hidden" name="role" value="${isAdmin ? "member" : "admin"}" />
+                               <button type="submit" class="link-btn">${isAdmin ? `Make ${escapeHtml(label)} a member` : `Make ${escapeHtml(label)} an admin`}</button>
+                             </form>
+                             <form method="post" action="/orgs/members/remove">
+                               <input type="hidden" name="user_id" value="${escapeHtml(m.userId)}" />
+                               <button type="submit" class="link-btn danger">Remove ${escapeHtml(label)} from this team</button>
+                             </form>
+                           </div>
+                         </details>`
                       : "";
                   return `
                 <li>
@@ -80,8 +87,8 @@ export function setupPage(opts: {
                     ${m.email && m.name ? `<span class="muted" style="display:block;font-size:0.85rem">${escapeHtml(m.email)}</span>` : ""}
                   </span>
                   <span style="display:inline-flex;align-items:center;gap:10px">
-                    ${actions}
                     <span class="badge">${escapeHtml(m.role)}</span>
+                    ${actions}
                   </span>
                 </li>`;
                 })
@@ -99,16 +106,20 @@ export function setupPage(opts: {
                 <li>
                   <code>${escapeHtml(inv.email)}</code>
                   <span style="display:inline-flex;align-items:center;gap:10px">
+                    <span class="badge">Pending</span>
                     ${
                       canManage
-                        ? `<form method="post" action="/orgs/invites/revoke" style="display:inline"
-                                 onsubmit="return confirm('Revoke this pending invite?')">
-                             <input type="hidden" name="invitation_id" value="${escapeHtml(inv.id)}" />
-                             <button type="submit" class="link-btn danger">Revoke</button>
-                           </form>`
+                        ? `<details class="row-manage">
+                             <summary>Manage</summary>
+                             <div class="row-manage-actions">
+                               <form method="post" action="/orgs/invites/revoke">
+                                 <input type="hidden" name="invitation_id" value="${escapeHtml(inv.id)}" />
+                                 <button type="submit" class="link-btn danger">Revoke the invite for ${escapeHtml(inv.email)}</button>
+                               </form>
+                             </div>
+                           </details>`
                         : ""
                     }
-                    <span class="badge">Pending</span>
                   </span>
                 </li>`,
                  )
@@ -302,38 +313,40 @@ export function setupPage(opts: {
     </section>
   `;
 
-  const deleteTeamForm = org
-    ? `
+  const deleteTeamForm =
+    org && selfRole === "owner"
+      ? `
       <details class="quiet-details">
         <summary>Delete team “${escapeHtml(org.name)}”</summary>
-        <p class="muted" style="margin:10px 0 6px">Admins only. Removes the WorkOS organization, all memberships, linked repos, and every claim on this board — for everyone. This cannot be undone.</p>
+        <p class="muted" style="margin:10px 0 6px">Owner only. Removes the WorkOS organization, all memberships, linked repos, and every claim on this board — for everyone. This cannot be undone.</p>
         <form method="post" action="/orgs/delete" class="stack" style="margin-top:8px">
           <label>
-            Type the team slug <code>${escapeHtml(org.slug)}</code> to confirm
-            <input name="confirm" required autocomplete="off" placeholder="${escapeHtml(org.slug)}" />
+            Type <code>delete ${escapeHtml(org.slug)}</code> to confirm
+            <input name="confirm" required autocomplete="off" placeholder="delete ${escapeHtml(org.slug)}" />
           </label>
           <div class="row">
             <button type="submit" class="ghost">Delete this team permanently</button>
           </div>
         </form>
       </details>`
-    : "";
+      : "";
 
   const leaveTeamForm = org
-    ? `
+    ? selfRole === "owner"
+      ? `<p class="muted">As the owner you can’t leave “${escapeHtml(org.name)}” — delete the team instead, or hand it over first.</p>`
+      : `
       <details class="quiet-details">
         <summary>Leave team “${escapeHtml(org.name)}”</summary>
         <p class="muted" style="margin:10px 0 6px">Removes you from this team’s board. You keep your account and other teams. If you are the team’s only admin, promote someone else first.</p>
-        <form method="post" action="/orgs/members/leave" class="stack" style="margin-top:8px"
-              onsubmit="return confirm('Leave this team?')">
+        <form method="post" action="/orgs/members/leave" class="stack" style="margin-top:8px">
           <div class="row">
-            <button type="submit" class="ghost">Leave this team</button>
+            <button type="submit" class="ghost">Leave “${escapeHtml(org.name)}”</button>
           </div>
         </form>
       </details>`
     : "";
 
-  const accountConfirm = user.email ?? "delete my account";
+  const accountConfirm = user.email ? `delete ${user.email}` : "delete my account";
   const dangerPanel = `
     <section class="panel danger">
       <h2>Danger zone</h2>
