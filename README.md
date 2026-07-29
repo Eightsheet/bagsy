@@ -102,7 +102,7 @@ Optional: email/password or social connections under AuthKit as you prefer — B
 - **Web:** Hono on Cloudflare Workers (`apps/web`) — renders the UI and proxies auth/form/API traffic to the API, so the session cookie stays first-party
 - **CLI:** `bagsy` (`packages/cli`) — published to npm via trusted publishing (OIDC); GitHub Releases carry the same tarball
 - **Auth:** WorkOS AuthKit + API tokens for CLI/agents
-- **Tenancy:** Org-gated boards; repo as key within a team; optional GitHub verify
+- **Tenancy:** Org-gated boards; repo as key within a team — membership is the only access gate
 
 ## Quick start (local API)
 
@@ -177,8 +177,6 @@ See [SECURITY.md](./SECURITY.md). Making the repo public does **not** open the h
 | `APP_URL` | Public **web** URL (the Cloudflare Worker origin) — used for WorkOS redirects, CORS, and the API-root redirect |
 | `WORKOS_API_KEY` / `WORKOS_CLIENT_ID` | AuthKit (required) |
 | `WORKBOARD_CLI_UPDATE_CHANNEL` | `stable` (48h delay) or `dev` (immediate); default `stable` |
-| `SKIP_GITHUB_VERIFY=1` | Soft-skip GitHub repo verify |
-| `GITHUB_VERIFY_TOKEN` | Optional PAT for verify |
 
 ## API
 

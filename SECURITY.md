@@ -16,8 +16,7 @@ Do not open a public issue for credential leaks, auth bypasses, or RCE.
 ## What is out of scope / by design
 
 - The Workboard **hosted API** is a shared service. Making this **git repo** public does not grant API access — you still need WorkOS login + team membership.
-- GitHub repo access alone does not grant claim-board access.
-- `SKIP_GITHUB_VERIFY` soft-skips GitHub verification when set on the server; treat it as a deployment choice, not client-controlled.
+- GitHub repo access alone does not grant claim-board access; there is no GitHub account link or repo verification — team membership is the only gate.
 
 ## Hardening already in place
 
@@ -45,6 +44,5 @@ API auth validates WorkOS access JWTs: JWKS signature, `exp`, allowlisted `iss`,
 ## Operator checklist (hosted instance)
 
 - Keep `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, `DATABASE_URL` only in Railway (or equivalent)
-- Prefer leaving `SKIP_GITHUB_VERIFY` unset once GitHub verify is wired
 - Set `WORKBOARD_CLI_UPDATE_CHANNEL=dev` only if you want CLIs to pick up releases immediately
 - After auth migrations, tell users to `bagsy upgrade` then `bagsy login`
