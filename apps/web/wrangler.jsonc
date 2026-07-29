@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bagsy-web",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  // Production API on Railway; override locally via .dev.vars.
+  "vars": {
+    "API_ORIGIN": "https://repo-org-production.up.railway.app"
+  }
+}

@@ -89,16 +89,17 @@ Auth is already wired in the app (`provider: "authkit"`) and production has `WOR
 Enable / verify in the [WorkOS Dashboard](https://dashboard.workos.com):
 
 1. **Authentication → AuthKit** — AuthKit enabled for the environment
-2. **Applications** → your app → **Redirects** — register exactly:
-   - `https://repo-org-production.up.railway.app/auth/callback`
-   - (local) `http://localhost:3000/auth/callback`
+2. **Applications** → your app → **Redirects** — register exactly (web Worker origin, not the Railway API):
+   - the `bagsy-web` Workers URL + `/auth/callback`
+   - (local) `http://localhost:8787/auth/callback`
 3. Use the **same** Application’s Client ID + API key that Railway has (mismatch → `invalid_client`)
 
 Optional: email/password or social connections under AuthKit as you prefer — Bagsy only needs the AuthKit redirect flow.
 
 ## Stack
 
-- **API + Web:** Hono on Railway (`apps/api`)
+- **API:** Hono on Railway (`apps/api`)
+- **Web:** Hono on Cloudflare Workers (`apps/web`) — renders the UI and proxies auth/form/API traffic to the API, so the session cookie stays first-party
 - **CLI:** `bagsy` (`packages/cli`) — published to npm via trusted publishing (OIDC); GitHub Releases carry the same tarball
 - **Auth:** WorkOS AuthKit + API tokens for CLI/agents
 - **Tenancy:** Org-gated boards; repo as key within a team; optional GitHub verify
@@ -113,11 +114,17 @@ pnpm --filter @bagsy/shared build
 export DATABASE_URL=postgres://postgres:postgres@localhost:5432/repo_org
 export WORKOS_API_KEY=…
 export WORKOS_CLIENT_ID=…
-export APP_URL=http://localhost:3000
+export APP_URL=http://localhost:8787   # the web Worker origin (wrangler dev)
 
 pnpm --filter @bagsy/api db:generate
 pnpm --filter @bagsy/api db:migrate
 pnpm --filter @bagsy/api dev
+```
+
+Web UI (Cloudflare Worker, proxies to the local API via `apps/web/.dev.vars`):
+
+```bash
+pnpm dev:web   # http://localhost:8787
 ```
 
 CLI against local API:
@@ -133,10 +140,10 @@ BAGSY_API_URL=http://localhost:3000 node packages/cli/dist/bagsy.js login
 
 Create a team or invite a teammate from the web UI — Bagsy creates the WorkOS org and makes you admin.
 
-WorkOS redirect URIs:
+WorkOS redirect URIs (the **web** origin — the Worker proxies the callback to the API):
 
-- Local: `http://localhost:3000/auth/callback`
-- Prod: `https://repo-org-production.up.railway.app/auth/callback`
+- Local: `http://localhost:8787/auth/callback`
+- Prod: the `bagsy-web` Workers URL + `/auth/callback`
 
 ## CLI
 
@@ -167,7 +174,7 @@ See [SECURITY.md](./SECURITY.md). Making the repo public does **not** open the h
 | Var | Purpose |
 |-----|---------|
 | `DATABASE_URL` | Postgres (Railway plugin) |
-| `APP_URL` | Public URL |
+| `APP_URL` | Public **web** URL (the Cloudflare Worker origin) — used for WorkOS redirects, CORS, and the API-root redirect |
 | `WORKOS_API_KEY` / `WORKOS_CLIENT_ID` | AuthKit (required) |
 | `WORKBOARD_CLI_UPDATE_CHANNEL` | `stable` (48h delay) or `dev` (immediate); default `stable` |
 | `SKIP_GITHUB_VERIFY=1` | Soft-skip GitHub repo verify |

@@ -1,4 +1,4 @@
-import { layout } from "../html.js";
+import { layout } from "../html";
 
 export function privacyPage(): string {
   return layout(

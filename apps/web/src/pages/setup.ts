@@ -1,4 +1,4 @@
-import { escapeHtml, layout, topbar, type ShellOrg, type ShellUser } from "../html.js";
+import { escapeHtml, layout, topbar, type ShellOrg, type ShellUser } from "../html";
 
 export type SetupMember = {
   userId: string;
@@ -17,7 +17,7 @@ export function setupPage(opts: {
   user: ShellUser;
   org: ShellOrg | null;
   orgs: ShellOrg[];
-  repos: Array<{ repo: string; verifiedAt: Date | null }>;
+  repos: Array<{ repo: string; verifiedAt: string | null }>;
   members?: SetupMember[];
   pendingInvites?: SetupPendingInvite[];
   flash?: string | null;
