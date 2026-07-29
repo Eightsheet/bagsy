@@ -97,9 +97,14 @@ webRoutes.get("/health", (c) => c.json({ ok: true }));
 
 // The HTML UI lives in the @bagsy/web Worker, which proxies everything that
 // needs a session or the DB back here. Direct visits to the API root are sent
-// to the web app when APP_URL points at it.
+// to the web app when APP_URL points at it — unless APP_URL still points at
+// this API itself (pre-cutover), which would redirect-loop.
 webRoutes.get("/", (c) => {
-  if (process.env.APP_URL) return c.redirect(appUrl());
+  const web = process.env.APP_URL ? appUrl() : null;
+  const selfHost = c.req.header("x-forwarded-host") ?? c.req.header("host");
+  if (web && selfHost && new URL(web).host !== selfHost) {
+    return c.redirect(web);
+  }
   return c.json({ ok: true, service: "bagsy-api" });
 });
 
