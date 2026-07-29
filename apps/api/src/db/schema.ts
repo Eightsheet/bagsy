@@ -105,6 +105,32 @@ export const claims = pgTable(
   ],
 );
 
+/**
+ * Append-only timeline per claim: system events (claimed / started / stale /
+ * stolen / released / files synced) plus agent notes from heartbeats. Lets a
+ * teammate judge a STALE claim before stealing it instead of guessing.
+ */
+export const claimEvents = pgTable(
+  "claim_events",
+  {
+    id: text("id").primaryKey(),
+    claimId: text("claim_id")
+      .notNull()
+      .references(() => claims.id, { onDelete: "cascade" }),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    /** Nulled instead of cascaded so a deleted account does not rewrite history. */
+    userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: text("actor_name"),
+    kind: text("kind").notNull(),
+    message: text("message"),
+    meta: jsonb("meta").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("claim_events_claim_created").on(t.claimId, t.createdAt)],
+);
+
 export const deviceCodes = pgTable("device_codes", {
   id: text("id").primaryKey(),
   deviceCode: text("device_code").notNull().unique(),
@@ -123,6 +149,8 @@ export const sessions = pgTable("sessions", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   orgId: text("org_id").references(() => organizations.id),
+  /** WorkOS AuthKit session id (`sid` claim) — needed to end the AuthKit session on logout. */
+  workosSessionId: text("workos_session_id"),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

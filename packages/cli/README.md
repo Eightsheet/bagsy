@@ -48,7 +48,16 @@ bagsy login
 bagsy link-repo          # from a git clone
 bagsy status
 bagsy claim -t "Title" -f path/file.ts
+bagsy heartbeat --note "migration written, tests next"
+bagsy log                # full timeline of the current claim
+bagsy release current --result <PR-URL-or-SHA>
 bagsy upgrade            # optional: force CLI update
 ```
+
+## Claim timeline
+
+Each claim keeps an append-only history: the API records `claimed` / `started` / `stale` / `stolen` / `released` itself, and `--note` on a heartbeat adds a progress entry. `bagsy status` prints the last few per claim; `bagsy log <id>` prints all of it — useful before taking over a STALE claim with `--steal`.
+
+`bagsy heartbeat` also reports the files your working tree actually touched (uncommitted, untracked, and committed on this branch) and widens the claim to match, so overlap detection reflects real work instead of the guess made at claim time. It warns if you grew into someone else's files. Opt out per call with `--no-sync-files`.
 
 See the repo README for agent usage.

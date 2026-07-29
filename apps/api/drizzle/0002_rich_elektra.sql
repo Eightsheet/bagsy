@@ -1,0 +1,1 @@
+ALTER TABLE "sessions" ADD COLUMN "workos_session_id" text;

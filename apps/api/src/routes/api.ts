@@ -6,9 +6,11 @@ import { requireApiAuth } from "../auth/middleware.js";
 import { listLocalOrgsForUser } from "../auth/orgs.js";
 import { db } from "../db/client.js";
 import { linkedRepos, memberships, organizations } from "../db/schema.js";
+import { listClaimEvents } from "../lib/claim-events.js";
 import {
   createClaim,
   findActiveClaimForUser,
+  getClaimForOrg,
   heartbeatClaim,
   listActiveClaims,
   releaseClaim,
@@ -131,6 +133,7 @@ apiRoutes.post("/v1/claims/current/release", async (c) => {
   if (!current) return c.json({ error: "no active claim" }, 404);
   const result = await releaseClaim(current.id, auth.user.id, {
     resolvedRef: body.resolvedRef ?? null,
+    actorName: auth.user.name ?? auth.user.email ?? null,
   });
   if ("error" in result) return c.json({ error: result.error }, result.status);
   return c.json({ claim: result.claim });
@@ -172,12 +175,41 @@ apiRoutes.post("/v1/claims/:id/heartbeat", async (c) => {
     .object({
       note: z.string().max(1000).optional().nullable(),
       ttlSeconds: z.number().int().positive().max(24 * 60 * 60).optional(),
+      /** Working-tree paths from the CLI; the claim scope grows to match them. */
+      files: z.array(z.string().max(400)).max(500).optional(),
     })
     .parse((await c.req.json().catch(() => ({}))) ?? {});
 
-  const result = await heartbeatClaim(c.req.param("id"), auth.user.id, body);
+  const result = await heartbeatClaim(c.req.param("id"), auth.user.id, {
+    ...body,
+    actorName: auth.user.name ?? auth.user.email ?? null,
+  });
   if ("error" in result) return c.json({ error: result.error }, result.status);
-  return c.json({ claim: result.claim });
+  return c.json({
+    claim: result.claim,
+    addedFiles: result.addedFiles,
+    overlaps: result.overlaps,
+    syncSkipped: result.syncSkipped,
+  });
+});
+
+/** Full claim timeline — what was done, in order. */
+apiRoutes.get("/v1/claims/:id/events", async (c) => {
+  const auth = c.get("auth");
+  const found = await getClaimForOrg(c.req.param("id"), auth.org.id);
+  if ("error" in found) return c.json({ error: found.error }, found.status);
+  const events = await listClaimEvents(found.claim.id);
+  return c.json({
+    claim: {
+      id: found.claim.id,
+      title: found.claim.title,
+      status: found.claim.status,
+      note: found.claim.note,
+      files: found.claim.files ?? [],
+      resolvedRef: found.claim.resolvedRef,
+    },
+    events,
+  });
 });
 
 apiRoutes.post("/v1/claims/:id/release", async (c) => {
@@ -189,6 +221,7 @@ apiRoutes.post("/v1/claims/:id/release", async (c) => {
     .parse((await c.req.json().catch(() => ({}))) ?? {});
   const result = await releaseClaim(c.req.param("id"), auth.user.id, {
     resolvedRef: body.resolvedRef ?? null,
+    actorName: auth.user.name ?? auth.user.email ?? null,
   });
   if ("error" in result) return c.json({ error: result.error }, result.status);
   return c.json({ claim: result.claim });
