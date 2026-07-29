@@ -387,6 +387,7 @@ webRoutes.post(
 
   const name =
     String(body.name ?? "").trim() || defaultOrgName(user.name, user.email);
+  const inviteRole = String(body.role ?? "member") === "admin" ? "admin" : "member";
 
   try {
     let workosOrgId: string;
@@ -402,6 +403,13 @@ webRoutes.post(
       orgName = created.name;
       await rotateSession(c, user.id, created.id);
     } else {
+      // Inviting into an existing team is an admin action, like remove/role.
+      const role = await membershipRole(active.id, user.id);
+      if (role !== "admin") {
+        return c.redirect(
+          `/?err=${encodeURIComponent("Only team admins can invite members")}`,
+        );
+      }
       const orgRow = (
         await db.select().from(organizations).where(eq(organizations.id, active.id)).limit(1)
       )[0];
@@ -418,6 +426,7 @@ webRoutes.post(
       email,
       workosOrgId,
       inviterWorkosUserId: local.workosUserId,
+      roleSlug: inviteRole,
     });
 
     const msg = createNew

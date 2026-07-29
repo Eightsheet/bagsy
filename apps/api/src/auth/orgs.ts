@@ -55,7 +55,20 @@ export async function upsertLocalOrgFromWorkOS(input: {
     orgRow = { ...orgRow, name: input.name };
   }
 
-  await ensureMembership(input.localUserId, orgRow!.id, input.role ?? "member");
+  const membership = await ensureMembership(
+    input.localUserId,
+    orgRow!.id,
+    input.role ?? "member",
+  );
+  // ensureMembership only inserts; WorkOS is the source of truth for roles, so
+  // a role that changed remotely (promotion, healed data) must be mirrored onto
+  // the existing row too — otherwise the first-ever role sticks forever.
+  if (input.role && membership.role !== input.role) {
+    await db
+      .update(memberships)
+      .set({ role: input.role })
+      .where(eq(memberships.id, membership.id));
+  }
   return {
     id: orgRow!.id,
     slug: orgRow!.slug,
