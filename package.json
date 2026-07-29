@@ -1,12 +1,12 @@
 {
-  "name": "repo-org",
+  "name": "bagsy-monorepo",
   "private": true,
   "packageManager": "pnpm@9.15.0",
   "scripts": {
     "build": "pnpm -r run build",
-    "dev": "pnpm --filter @repo-org/api dev",
-    "db:generate": "pnpm --filter @repo-org/api db:generate",
-    "db:migrate": "pnpm --filter @repo-org/api db:migrate",
-    "start": "pnpm --filter @repo-org/api start"
+    "dev": "pnpm --filter @bagsy/api dev",
+    "db:generate": "pnpm --filter @bagsy/api db:generate",
+    "db:migrate": "pnpm --filter @bagsy/api db:migrate",
+    "start": "pnpm --filter @bagsy/api start"
   }
 }

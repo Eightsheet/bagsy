@@ -23,8 +23,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile=false
-      - run: pnpm --filter @repo-org/shared build
-      - run: pnpm --filter @repo-org/api exec tsc -p tsconfig.json --noEmit
+      - run: pnpm --filter @bagsy/shared build
+      - run: pnpm --filter @bagsy/api exec tsc -p tsconfig.json --noEmit
       - run: pnpm --filter @bagsy/cli build
       - run: node packages/cli/dist/bagsy.js --help
       - name: Pack CLI (smoke)

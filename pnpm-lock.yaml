@@ -10,12 +10,12 @@ importers:
 
   apps/api:
     dependencies:
+      '@bagsy/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@hono/node-server':
         specifier: ^1.14.1
         version: 1.19.17(hono@4.12.32)
-      '@repo-org/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@workos-inc/node':
         specifier: ^7.54.0
         version: 7.82.0
@@ -53,7 +53,7 @@ importers:
 
   packages/cli:
     devDependencies:
-      '@repo-org/shared':
+      '@bagsy/shared':
         specifier: workspace:*
         version: link:../shared
       '@types/node':

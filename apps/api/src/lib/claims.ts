@@ -7,7 +7,7 @@ import {
   normalizeRepo,
   type ClaimRecord,
   type OverlapInfo,
-} from "@repo-org/shared";
+} from "@bagsy/shared";
 import { db } from "../db/client.js";
 import { claims, linkedRepos, organizations, users } from "../db/schema.js";
 import { newId } from "../lib/crypto.js";

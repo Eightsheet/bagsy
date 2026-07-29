@@ -13,7 +13,7 @@ app.use(
   cors({
     // CLI uses Bearer tokens (no cookies). Browser UI is same-origin.
     origin: process.env.APP_URL?.replace(/\/$/, "") || "*",
-    allowHeaders: ["Authorization", "Content-Type", "X-Workboard-Org"],
+    allowHeaders: ["Authorization", "Content-Type", "X-Workboard-Org", "X-Bagsy-Org"],
   }),
 );
 
@@ -41,7 +41,7 @@ app.onError((err, c) => {
 const port = Number(process.env.PORT ?? 3000);
 
 serve({ fetch: app.fetch, port }, () => {
-  console.log(`workboard api listening on :${port}`);
+  console.log(`bagsy api listening on :${port}`);
 });
 
 export default app;

@@ -105,7 +105,7 @@ Optional: email/password or social connections under AuthKit as you prefer — B
 
 ```bash
 pnpm install
-pnpm --filter @repo-org/shared build
+pnpm --filter @bagsy/shared build
 
 # Postgres required
 export DATABASE_URL=postgres://postgres:postgres@localhost:5432/repo_org
@@ -113,9 +113,9 @@ export WORKOS_API_KEY=…
 export WORKOS_CLIENT_ID=…
 export APP_URL=http://localhost:3000
 
-pnpm --filter @repo-org/api db:generate
-pnpm --filter @repo-org/api db:migrate
-pnpm --filter @repo-org/api dev
+pnpm --filter @bagsy/api db:generate
+pnpm --filter @bagsy/api db:migrate
+pnpm --filter @bagsy/api dev
 ```
 
 CLI against local API:

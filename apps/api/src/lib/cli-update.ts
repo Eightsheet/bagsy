@@ -19,19 +19,25 @@ type Cache = {
 let cache: Cache | null = null;
 
 export function cliUpdateChannel(): "stable" | "dev" {
-  const raw = (process.env.WORKBOARD_CLI_UPDATE_CHANNEL ?? "stable").trim().toLowerCase();
+  const raw = (
+    process.env.BAGSY_CLI_UPDATE_CHANNEL ??
+    process.env.WORKBOARD_CLI_UPDATE_CHANNEL ??
+    "stable"
+  )
+    .trim()
+    .toLowerCase();
   return raw === "dev" ? "dev" : "stable";
 }
 
 function tarballUrlFor(version: string): string {
-  return `https://github.com/${GITHUB_REPO}/releases/download/v${version}/workboard-cli-${version}.tgz`;
+  return `https://github.com/${GITHUB_REPO}/releases/download/v${version}/bagsy-cli-${version}.tgz`;
 }
 
 async function fetchLatestRelease(): Promise<CliUpdateInfo | null> {
   const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
     headers: {
       Accept: "application/vnd.github+json",
-      "User-Agent": "workboard-api",
+      "User-Agent": "bagsy-api",
       ...(process.env.GITHUB_TOKEN
         ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` }
         : {}),
@@ -49,9 +55,15 @@ async function fetchLatestRelease(): Promise<CliUpdateInfo | null> {
   const version = tag.startsWith("v") ? tag.slice(1) : tag;
   if (!version || !json.published_at) return null;
 
-  const asset = json.assets?.find(
-    (a) => a.name === `workboard-cli-${version}.tgz` && a.browser_download_url,
-  );
+  // Releases carry the tarball under both names; old CLIs need the legacy one
+  // only via the fallback URL they construct themselves.
+  const asset =
+    json.assets?.find(
+      (a) => a.name === `bagsy-cli-${version}.tgz` && a.browser_download_url,
+    ) ??
+    json.assets?.find(
+      (a) => a.name === `workboard-cli-${version}.tgz` && a.browser_download_url,
+    );
 
   return {
     version,

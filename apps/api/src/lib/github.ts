@@ -32,7 +32,7 @@ export async function verifyGithubRepoAccess(
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
-      "User-Agent": "repo-org-workboard",
+      "User-Agent": "bagsy",
       "X-GitHub-Api-Version": "2022-11-28",
     },
   });
