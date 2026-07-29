@@ -599,6 +599,51 @@ export async function releaseClaim(
   return { claim: updated! };
 }
 
+/**
+ * End a stale claim's soft hold without taking the work — the "that agent is
+ * dead, unblock the board" call, which is the one judgement the CLI can only
+ * express as a side effect of `claim --steal`.
+ *
+ * Deliberately restricted to `stale`: an actively heartbeating claim must never
+ * be yankable from a dashboard, because its agent still has local WIP.
+ */
+export async function dropSoftHold(
+  claimId: string,
+  actor: { orgId: string; userId: string; userEmail: string | null; userName: string | null },
+) {
+  const rows = await db.select().from(claims).where(eq(claims.id, claimId)).limit(1);
+  const claim = rows[0];
+  if (!claim) return { error: "not found", status: 404 as const };
+  if (claim.orgId !== actor.orgId) return { error: "forbidden", status: 403 as const };
+  if (claim.status !== "stale") {
+    return {
+      error: `claim is ${claim.status}, not a soft hold — only a stale claim can be freed`,
+      status: 400 as const,
+    };
+  }
+
+  const now = new Date();
+  const [updated] = await db
+    .update(claims)
+    .set({ status: "expired", releasedAt: now, updatedAt: now })
+    .where(and(eq(claims.id, claimId), eq(claims.status, "stale")))
+    .returning();
+  // Lost the race against the lifecycle pass or another teammate — already free.
+  if (!updated) return { error: "claim is no longer a soft hold", status: 409 as const };
+
+  const who = actorLabel({ name: actor.userName, email: actor.userEmail }) ?? "a teammate";
+  await recordClaimEventSafe({
+    claimId,
+    orgId: claim.orgId,
+    userId: actor.userId,
+    actorName: who,
+    kind: "stolen",
+    message: `Soft hold dropped by ${who} — the files are free again; nobody picked up the work`,
+  });
+
+  return { claim: updated };
+}
+
 /** Claim row, but only for a caller who is on that claim's board. */
 export async function getClaimForOrg(claimId: string, orgId: string) {
   const rows = await db.select().from(claims).where(eq(claims.id, claimId)).limit(1);

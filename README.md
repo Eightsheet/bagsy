@@ -104,6 +104,29 @@ Optional: email/password or social connections under AuthKit as you prefer — B
 - **Auth:** WorkOS AuthKit + API tokens for CLI/agents
 - **Tenancy:** Org-gated boards; repo as key within a team — membership is the only access gate
 
+## The board (web UI)
+
+| Route | What it is |
+|-------|------------|
+| `/` | **The fold.** At most five things that need a person, ranked by how soon each becomes irreversible. Its length depends on how many decisions exist, not how many claims exist — at 200 healthy agents it is nearly empty, on purpose. |
+| `/board` | Every live claim, dense and sortable. Filters live entirely in the URL, so any view is a link you can paste into a chat. |
+| `/queue` | Follow-ups (`bagsy plan`), grouped by whether you can start them right now. |
+| `/claims/:id` | One claim: timeline, files, overlaps, actions. |
+| `/setup` | Teams, invites, linked repos. |
+
+The board decides what to show mostly by *demoting*: a soft hold blocking
+nobody frees itself in 24h and is not a decision; a path held by four or more
+claims is a hot path shown once rather than as its N·(N−1)/2 pairs; a blocked
+queue item is waiting, not starving.
+
+From a browser you can free a soft hold, release your own claim, and take a
+queued one. Taking over someone's *work* stays in the CLI — a browser has no
+working tree — so every action carries its `bagsy …` equivalent underneath.
+
+`/preview?claims=200&repos=12&seed=7` renders all of it against a synthetic
+board, with no session and no database. It is a review aid, not a product
+surface.
+
 ## Quick start (local API)
 
 ```bash
@@ -188,3 +211,14 @@ See [SECURITY.md](./SECURITY.md). Making the repo public does **not** open the h
 - `GET|POST /v1/repos/:owner/:repo/claims` — header `X-Workboard-Org: slug` (the CLI also sends `X-Bagsy-Org`)
 - `POST /v1/claims/:id/heartbeat|release`
 - `POST /v1/repos` — link repo
+
+Session-authed, for the web UI (not the CLI):
+
+- `GET /v1/web/state` — teams, members, linked repos (setup page)
+- `GET /v1/web/board` — the whole team board: every live claim across every
+  linked repo, the planned queue, per-repo and per-agent rollups, and the
+  collision graph
+- `GET /v1/web/claims/:id` — one claim, full timeline, its overlaps
+- `GET /v1/web/board/digest` — counts + an etag, for the polling island; runs no
+  lifecycle pass and no collision pass
+- `POST /claims/:id/start|release|soft-hold/drop` — form posts from the board

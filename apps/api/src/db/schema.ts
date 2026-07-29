@@ -102,6 +102,8 @@ export const claims = pgTable(
   (t) => [
     index("claims_org_repo_status").on(t.orgId, t.repo, t.status),
     index("claims_user_status").on(t.userId, t.status),
+    /** The board digest asks "has anything on this team moved" on a timer. */
+    index("claims_org_updated").on(t.orgId, t.updatedAt),
   ],
 );
 

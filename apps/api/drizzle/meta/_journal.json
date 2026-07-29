@@ -29,6 +29,13 @@
       "when": 1785326753903,
       "tag": "0003_plain_mephistopheles",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785357513914,
+      "tag": "0004_exotic_jack_murdock",
+      "breakpoints": true
     }
   ]
 }

@@ -23,6 +23,18 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile=false
+
+      # Deliberately BEFORE anything builds @bagsy/shared, so this job sees what
+      # a fresh clone sees. Cloudflare Workers Builds deploys from a clean
+      # checkout where dist/ does not exist (gitignored), and apps/web had no
+      # CI coverage at all — so a Worker that could not even bundle went green
+      # here. Ordered after the shared build it would pass on a warm tree while
+      # a real deploy fails, which is the hole this is meant to close.
+      - name: Bundle web Worker (fresh-clone conditions)
+        run: pnpm --filter @bagsy/web exec wrangler deploy --dry-run --outdir "$RUNNER_TEMP/wdry"
+      - name: Typecheck web Worker (fresh-clone conditions)
+        run: pnpm --filter @bagsy/web exec tsc -p tsconfig.json --noEmit
+
       - run: pnpm --filter @bagsy/shared build
       - run: pnpm --filter @bagsy/api exec tsc -p tsconfig.json --noEmit
       - run: pnpm --filter @bagsy/cli build

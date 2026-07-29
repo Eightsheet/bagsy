@@ -1,0 +1,1 @@
+CREATE INDEX "claims_org_updated" ON "claims" USING btree ("org_id","updated_at");

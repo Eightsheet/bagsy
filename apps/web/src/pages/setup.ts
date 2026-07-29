@@ -371,8 +371,8 @@ export function setupPage(opts: {
   return layout(
     "Setup",
     `
-    ${topbar({ user, org, orgs })}
-    <p class="lede"><strong>Setup.</strong> Teams, invites, and which repos sit on whose board. Agent work stays in the CLI.</p>
+    ${topbar({ user, org, orgs, section: "setup" })}
+    <p class="lede"><strong>Setup.</strong> Teams, invites, and which repos sit on whose board. The <a href="/">board</a> itself is where the claims are.</p>
     ${notices}
     ${howItWorks}
     ${orgPanel}

@@ -3,6 +3,14 @@
   "name": "bagsy",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-01",
+  // Bundle @bagsy/shared from source rather than through its "exports", which
+  // point at a gitignored dist/. esbuild compiles the TypeScript directly, so
+  // a deploy from a clean checkout needs no prior build of anything — there is
+  // no build-order dependency left to get wrong. tsconfig.json carries the
+  // matching "paths" so typechecking resolves the same file.
+  "alias": {
+    "@bagsy/shared": "../../packages/shared/src/index.ts"
+  },
   // Production API on Railway; override locally via .dev.vars.
   "vars": {
     "API_ORIGIN": "https://repo-org-production.up.railway.app"

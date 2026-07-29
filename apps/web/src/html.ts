@@ -35,6 +35,7 @@ const css = `
   --on-highlight: #111111;
   --danger: #c62828;
   --danger-wash: #fdecea;
+  --danger-line: #e0a0a0;
   --radius: 0px;
   --font: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -57,18 +58,23 @@ const css = `
     --on-highlight: #111111;
     --danger: #ff7b72;
     --danger-wash: #2a1614;
+    --danger-line: #5c2b28;
   }
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 
-html { overflow-x: hidden; scroll-behavior: smooth; }
+/* No overflow-x here: 'hidden' on html or body makes it a scroll container, which
+   silently kills position:sticky on every descendant — including the board's
+   sticky table head. 'clip' still prevents sideways page scroll without
+   creating a scrollport. */
+html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  overflow-x: hidden;
+  overflow-x: clip;
   font: 15px/1.4 var(--font);
   color: var(--ink);
   background: var(--bg);
@@ -91,6 +97,10 @@ a:hover { background: var(--highlight); color: var(--on-highlight); }
 }
 
 .site-main.narrow { width: min(520px, calc(100% - 32px)); }
+
+/* The audit surface only. Reading widths stay at 760px — a fold you read as
+   prose must not stretch just because a table elsewhere needs the room. */
+.site-main.wide, .site-footer.wide { width: min(1180px, calc(100% - 32px)); }
 
 .topbar {
   display: flex;
@@ -170,6 +180,15 @@ h2 {
 .panel:first-of-type h2,
 .below-fold > h2:first-child {
   margin-top: 0;
+}
+
+/* Fills the bottom of the deliberate 1rem–1.45rem gap between .lede and h1
+   rather than inventing a new step in the scale. */
+h3 {
+  font-size: 1rem;
+  line-height: 1.3;
+  font-weight: 700;
+  margin: 0 0 4px;
 }
 
 .lede {
@@ -347,9 +366,30 @@ h2 {
   transform: scale(0.98);
 }
 
-.btn:focus-visible, button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
+/* summary was missing and this surface is built out of disclosures. */
+.btn:focus-visible, button:focus-visible, a:focus-visible, input:focus-visible,
+select:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
+}
+
+/* Hidden from sight, not from assistive tech — unlike display:none. */
+.vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.skip-link { position: absolute; left: -9999px; }
+.skip-link:focus {
+  position: static;
+  display: inline-block;
+  background: var(--highlight);
+  color: var(--on-highlight);
+  padding: 6px 10px;
 }
 
 .btn-ghost, button.ghost {
@@ -587,6 +627,11 @@ code, .mono {
 }
 .cmd.copied::after { content: "copied"; color: var(--on-highlight); font-weight: 700; }
 
+/* A board page carries dozens of copy targets; sixty permanent "click to copy"
+   labels is noise. The affordance stays for hover and for keyboard focus. */
+.cmd.quiet::after { opacity: 0; transition: opacity 120ms ease; }
+.cmd.quiet:hover::after, .cmd.quiet:focus-visible::after { opacity: 1; }
+
 .focus-card { margin-top: 24px; }
 
 .success-mark {
@@ -602,6 +647,225 @@ code, .mono {
   margin-bottom: 12px;
   animation: pop-in 360ms var(--ease) both;
 }
+
+/* ---------------------------------------------------------------------------
+   Board. Everything below is the claim board; nothing above it changed shape.
+   No new colours and no new motion — the status scale is carried by the border
+   weights the system already uses (2px section / 1.5px chrome / 1px divider),
+   because yellow is spoken for as emphasis-and-hover and cannot also mean a
+   state.
+   --------------------------------------------------------------------------- */
+
+.topbar-nav { display: flex; gap: 16px; font-size: 0.9rem; }
+.topbar-nav a { text-decoration: none; padding-bottom: 2px; }
+.topbar-nav a[aria-current="page"] { font-weight: 700; border-bottom: 2px solid var(--ink); }
+
+/* The fold: at most five things that need a person, ranked. Its length is a
+   function of how many decisions exist, never of how many claims exist. */
+.fold { list-style: none; margin: 0 0 8px; padding: 0; border-top: 1px solid var(--ink); }
+.finding { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.finding:last-child { border-bottom: 0; }
+/* Borrows .dict's 3px rule to mark the lead story. Only the first one gets it. */
+.finding.lead { border-left: 3px solid var(--ink); padding-left: 12px; }
+.finding-kind { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin: 0 0 6px; }
+.finding h3 { margin: 0 0 4px; }
+.finding-facts { margin: 0 0 6px; color: var(--muted); font-size: 0.86rem; }
+.finding-consequence { margin: 0 0 6px; }
+.finding-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; }
+.finding .quiet-details { margin-top: 10px; }
+
+/* Two claims, side by side, so the comparison is spatial instead of narrated.
+   A hairline between them is the print answer and needs no alt text. */
+.versus { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 8px 0; }
+.versus > :nth-child(2) { border-left: 1px solid var(--line); padding-left: 16px; }
+.versus h4 { margin: 0 0 2px; font-size: 0.9rem; font-weight: 700; }
+.versus p { margin: 0; font-size: 0.82rem; color: var(--muted); }
+
+/* Soft-hold meter. Server-computed integer width; never user text, never
+   animated. Exactly one per finding — 200 of these would be ink noise, which
+   is why the table uses an aligned duration column instead. */
+.pressure {
+  display: inline-block;
+  width: 120px;
+  height: 10px;
+  border: 1.5px solid var(--ink);
+  vertical-align: -1px;
+}
+.pressure > i { display: block; height: 100%; background: var(--ink); }
+
+/* The agate: every live claim, dense. A claims board with columns is a table,
+   so it is a table — div soup with ARIA is strictly worse here.
+   Deliberately NOT wrapped in an overflow-x scroller: overflow-x:auto computes
+   overflow-y to auto too, which would make the wrapper the sticky thead's
+   scrollport and stop it sticking to the viewport at all. table-layout:fixed
+   plus the column drops below mean it never needs to scroll sideways. */
+.agate { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.82rem; }
+.agate th {
+  text-align: left;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding: 6px 10px 6px 0;
+  border-bottom: 2px solid var(--ink);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg);
+}
+.agate th a { color: inherit; text-decoration: none; }
+.agate th a:hover { background: var(--highlight); color: var(--on-highlight); }
+.agate td, .agate tbody th {
+  padding: 5px 10px 5px 0;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  text-align: left;
+  position: static;
+  background: transparent;
+  border-top: 0;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: inherit;
+  color: inherit;
+}
+/* Rows hover --code-bg, not yellow: a 1180px band of #ffe34d is a different
+   object from a text-sized hover target. Yellow still fires on the link inside.
+   No transition — a 120ms fade swept across 200 rows reads as a strobe. */
+.arow:hover td, .arow:hover th,
+.arow:focus-within td, .arow:focus-within th { background: var(--code-bg); }
+.agate-group th {
+  border-top: 2px solid var(--ink);
+  border-bottom: 0;
+  padding-top: 14px;
+  color: var(--ink);
+  font-family: var(--mono);
+  text-transform: none;
+  letter-spacing: 0;
+  position: static;
+  background: transparent;
+}
+.c-status { width: 7.5rem; }
+.c-clock { width: 5rem; text-align: right; }
+.c-files { width: 4.5rem; text-align: right; }
+.c-who { width: 8rem; }
+.c-agent { width: 9rem; }
+.c-repo { width: 12rem; }
+.c-title { width: auto; }
+.agate .mono, .agate .c-clock, .agate .c-files, .agate .c-repo {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.f-delta { font-weight: 700; }
+/* Columns are hidden, never restacked, so table semantics survive. */
+@media (max-width: 900px) { .c-agent, .c-repo, .c-files { display: none; } }
+@media (max-width: 640px) { .c-who { display: none; } }
+
+/* Per-repo standings. Zeros print as a muted middot so only real numbers
+   carry ink across 12 x 4 cells. */
+.standings { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.standings th {
+  text-align: left;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  border-bottom: 2px solid var(--ink);
+  padding: 6px 10px 6px 0;
+}
+.standings td { padding: 4px 10px 4px 0; border-bottom: 1px solid var(--line); }
+.standings td + td, .standings th + th {
+  text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.standings tfoot td { border-top: 2px solid var(--ink); border-bottom: 0; font-weight: 700; }
+
+.timeline { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--ink); }
+.timeline li {
+  display: grid;
+  grid-template-columns: 7rem 6.5rem minmax(0, 1fr);
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.timeline time { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
+.timeline .kind {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.timeline .msg { min-width: 0; overflow-wrap: anywhere; }
+/* An agent's own words get the pull-quote rule; system events do not. */
+.timeline li.note .msg { border-left: 3px solid var(--ink); padding-left: 10px; }
+@media (max-width: 560px) { .timeline li { grid-template-columns: 1fr; gap: 2px; } }
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.filters label { gap: 4px; }
+.filters input, .filters select { width: auto; min-width: 8rem; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+/* Shares button.link-btn's shape so the two read as one family. */
+a.chip {
+  display: inline-block;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+a.chip:hover { background: var(--highlight); color: var(--on-highlight); }
+a.chip[aria-current="true"] { border: 1.5px solid var(--ink); color: var(--ink); font-weight: 700; }
+
+/* Announces that the board moved. Never applies the change. */
+.stale-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg);
+  border-bottom: 2px solid var(--ink);
+  padding: 6px 0;
+  font-size: 0.82rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+/* Not a badge (would collide with the status weights) and not yellow (spent). */
+.new-mark {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-bottom: 1.5px solid var(--ink);
+}
+
+/* Status scale by border weight, since there is no status palette and there
+   should not be one. */
+.badge.mark { border-width: 2px; }
+.badge.quiet { border: 1px solid var(--line); color: var(--muted); }
+
+.files { list-style: none; margin: 0; padding: 0; font-family: var(--mono); font-size: 0.82rem; }
+.files li { padding: 3px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.files li.shared::before { content: "‡ "; font-weight: 700; }
+
+.crumb { font-size: 0.82rem; color: var(--muted); margin: 0 0 10px; font-family: var(--mono); }
+
+.tail { margin: 10px 0 0; color: var(--muted); font-size: 0.86rem; }
 
 @keyframes rise-in {
   from { opacity: 0; transform: translateY(6px); }
@@ -622,22 +886,37 @@ code, .mono {
     animation: none !important;
   }
   .btn:active, button:active { transform: none; }
+  .cmd.quiet::after { transition: none; }
 }
 
 @media (max-width: 560px) {
-  .site-main, .site-main.narrow { width: min(100% - 24px, 760px); padding: 20px 0 40px; }
+  .site-main, .site-main.narrow, .site-main.wide,
+  .site-footer, .site-footer.wide { width: min(100% - 24px, 760px); }
+  .site-main, .site-main.narrow, .site-main.wide { padding: 20px 0 40px; }
   .hero { min-height: calc(100dvh - 40px); }
   .org-select select { max-width: 10rem; }
+  .versus { grid-template-columns: 1fr; }
+  .versus > :nth-child(2) { border-left: 0; border-top: 1px solid var(--line); padding: 10px 0 0; }
 }
 `;
 
 export function layout(
   title: string,
   body: string,
-  opts?: { narrow?: boolean },
+  opts?: {
+    narrow?: boolean;
+    wide?: boolean;
+    skipTo?: { id: string; label: string };
+    /** Extra progressive-enhancement script. The page must be complete without it. */
+    islands?: string;
+  },
 ): string {
   const pageTitle = title === "Bagsy" ? "Bagsy" : `${title} · Bagsy`;
-  const mainClass = opts?.narrow ? "site-main narrow" : "site-main";
+  const width = opts?.narrow ? " narrow" : opts?.wide ? " wide" : "";
+  const mainClass = `site-main${width}`;
+  const skip = opts?.skipTo
+    ? `<a class="skip-link" href="#${escapeHtml(opts.skipTo.id)}">${escapeHtml(opts.skipTo.label)}</a>`
+    : "";
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -651,8 +930,9 @@ export function layout(
 </head>
 <body>
   <div class="site">
+    ${skip}
     <main class="${mainClass}">${body}</main>
-    <footer class="site-footer">
+    <footer class="site-footer${width}">
       <a href="https://github.com/Eightsheet/bagsy">GitHub</a> · <a href="https://github.com/Eightsheet/bagsy/issues">Support</a> · <a href="/privacy">Privacy</a>
     </footer>
   </div>
@@ -679,42 +959,67 @@ export function layout(
         }
       });
     }
-    document.querySelectorAll("code.cmd").forEach(function (el) {
-      el.setAttribute("role", "button");
-      el.setAttribute("tabindex", "0");
-      el.setAttribute("title", "Click to copy");
-      function go() {
-        var text = (el.textContent || "").trim();
-        if (!text) return;
-        copyText(text).then(function () {
-          el.classList.add("copied");
-          window.setTimeout(function () { el.classList.remove("copied"); }, 1200);
-        }).catch(function () { /* ignore */ });
-      }
-      el.addEventListener("click", go);
-      el.addEventListener("keydown", function (e) {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          go();
-        }
+    // One delegated pair of listeners rather than two per element: a board page
+    // carries dozens of copy targets, and they can be added after first paint.
+    function copyFrom(el) {
+      var text = (el.textContent || "").trim();
+      if (!text) return;
+      copyText(text).then(function () {
+        el.classList.add("copied");
+        window.setTimeout(function () { el.classList.remove("copied"); }, 1200);
+      }).catch(function () { /* ignore */ });
+    }
+    function markCopyable(root) {
+      (root || document).querySelectorAll("code.cmd:not([role])").forEach(function (el) {
+        el.setAttribute("role", "button");
+        el.setAttribute("tabindex", "0");
+        el.setAttribute("title", "Click to copy");
       });
+    }
+    markCopyable(document);
+    document.addEventListener("click", function (e) {
+      var el = e.target && e.target.closest ? e.target.closest("code.cmd") : null;
+      if (el) copyFrom(el);
     });
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      var el = e.target && e.target.closest ? e.target.closest("code.cmd") : null;
+      if (!el) return;
+      e.preventDefault();
+      copyFrom(el);
+    });
+
+    // The team switcher auto-submits on change, so its explicit Switch button
+    // is only needed when scripting is off. Removing it here is the smallest
+    // honest way to keep both paths working.
+    document.querySelectorAll("[data-nojs]").forEach(function (el) { el.remove(); });
   })();
   </script>
+  ${opts?.islands ?? ""}
 </body>
 </html>`;
 }
+
+/** Which top-level surface is being rendered, for `aria-current` in the nav. */
+export type TopbarSection = "board" | "queue" | "setup" | null;
+
+const NAV: Array<{ href: string; label: string; key: Exclude<TopbarSection, null> }> = [
+  { href: "/", label: "Board", key: "board" },
+  { href: "/queue", label: "Follow-ups", key: "queue" },
+  { href: "/setup", label: "Setup", key: "setup" },
+];
 
 export function topbar(opts: {
   user: ShellUser;
   org: ShellOrg | null;
   orgs: ShellOrg[];
+  section?: TopbarSection;
 }): string {
   const label = opts.user.email ?? opts.user.name ?? opts.user.id;
   const orgControl =
     opts.orgs.length > 0
       ? `<form class="org-select" method="post" action="/orgs/use">
-          <label class="muted" for="org-slug" style="display:none">Team</label>
+          <label class="vh" for="org-slug">Team</label>
           <select id="org-slug" name="slug" onchange="this.form.submit()" title="Active team">
             ${opts.orgs
               .map(
@@ -723,12 +1028,22 @@ export function topbar(opts: {
               )
               .join("")}
           </select>
+          <button type="submit" class="link-btn" data-nojs>Switch</button>
         </form>`
       : `<span class="muted">No team</span>`;
+
+  const nav = `
+        <nav class="topbar-nav" aria-label="Sections">
+          ${NAV.map(
+            (item) =>
+              `<a href="${item.href}"${opts.section === item.key ? ' aria-current="page"' : ""}>${item.label}</a>`,
+          ).join("")}
+        </nav>`;
 
   return `
     <header class="topbar">
       <a class="topbar-brand" href="/">Bagsy</a>
+      ${nav}
       <div class="topbar-meta">
         ${orgControl}
         <span class="topbar-user">${escapeHtml(label)}</span>

@@ -38,6 +38,15 @@ import {
   organizations,
   users,
 } from "../db/schema.js";
+import { SOFT_HOLD_SECONDS } from "@bagsy/shared";
+import { boardDigest, loadClaimDetail, loadOrgBoard } from "../lib/board.js";
+import { listClaimEvents } from "../lib/claim-events.js";
+import {
+  dropSoftHold,
+  getClaimForOrg,
+  releaseClaim,
+  startClaim,
+} from "../lib/claims.js";
 import { getCliUpdateInfo } from "../lib/cli-update.js";
 import { newId } from "../lib/crypto.js";
 import {
@@ -171,6 +180,80 @@ webRoutes.get("/v1/web/state", async (c) => {
     defaultOrgName: defaultOrgName(user.name, user.email),
   });
 });
+
+/**
+ * The whole team board in one response: every live claim across every linked
+ * repo, the planned queue, and who collides with whom. Rendered by @bagsy/web.
+ */
+webRoutes.get("/v1/web/board", async (c) => {
+  const user = c.get("sessionUser");
+  const org = c.get("sessionOrg");
+  if (!user) return c.json({ error: "unauthenticated" }, 401);
+  if (!org) return c.json({ error: "no_organization" }, 403);
+
+  // `orgs` rides along so the Worker can render the team switcher from one
+  // round trip instead of also fetching /v1/web/state on every board load.
+  const [board, orgs] = await Promise.all([
+    loadOrgBoard(org.id),
+    listLocalOrgsForUser(user.id),
+  ]);
+  return c.json({ user, org, orgs, ...board });
+});
+
+/** One claim in full: the whole log, its overlaps, and who else holds its paths. */
+webRoutes.get("/v1/web/claims/:id", async (c) => {
+  const user = c.get("sessionUser");
+  const org = c.get("sessionOrg");
+  if (!user) return c.json({ error: "unauthenticated" }, 401);
+  if (!org) return c.json({ error: "no_organization" }, 403);
+
+  const claim = await loadClaimDetail(c.req.param("id"), org.id);
+  if (!claim) return c.json({ error: "not_found" }, 404);
+
+  const [board, events, orgs] = await Promise.all([
+    loadOrgBoard(org.id, { withEvents: false }),
+    listClaimEvents(claim.id),
+    listLocalOrgsForUser(user.id),
+  ]);
+
+  return c.json({
+    user,
+    org,
+    orgs,
+    claim,
+    events,
+    eventCount: events.length,
+    own: claim.userId === user.id,
+    collisions: board.collisions.filter((e) => e.a === claim.id || e.b === claim.id),
+    claims: board.claims,
+    generatedAt: board.generatedAt,
+  });
+});
+
+/**
+ * The polling target. Deliberately not `/v1/web/board`, which runs the
+ * lifecycle pass (an UPDATE plus an INSERT per newly-stale claim) and a full
+ * collision pass on every call — twenty people polling that would be how the
+ * live-update island takes the API down.
+ */
+webRoutes.get(
+  "/v1/web/board/digest",
+  rateLimit({
+    name: "board-digest",
+    windowMs: 60_000,
+    max: 30,
+    key: (c) => c.get("sessionUser")?.id ?? "anon",
+  }),
+  async (c) => {
+    const user = c.get("sessionUser");
+    const org = c.get("sessionOrg");
+    if (!user) return c.json({ error: "unauthenticated" }, 401);
+    if (!org) return c.json({ error: "no_organization" }, 403);
+
+    const digest = await boardDigest(org.id);
+    return c.json(digest);
+  },
+);
 
 webRoutes.get("/login", (c) => {
   const next = c.req.query("next");
@@ -658,6 +741,140 @@ webRoutes.post("/repos", requireSession, async (c) => {
     });
   }
   return c.redirect("/");
+});
+
+/**
+ * The three things the board can do to a claim. All native form POSTs that
+ * redirect with ?ok= / ?err=, matching /repos and /orgs/* — including their
+ * CSRF posture, which rests on SameSite=Lax on wb_session. Freeing a soft hold
+ * is the first destructive cross-user single-request action in the product, so
+ * that gap is worth closing soon; inventing a second pattern only here would
+ * not close it.
+ */
+const claimActionLimit = rateLimit({
+  name: "claim-action",
+  windowMs: 60_000,
+  max: 20,
+  key: (c) => c.get("sessionUser")?.id ?? "anon",
+});
+
+/**
+ * `"error" in result` does not exclude the success branch — since TS 4.9 an
+ * `in` check narrows union members that lack the property to
+ * `T & Record<"error", unknown>` rather than dropping them, so the field reads
+ * back as `unknown`. Read it through here instead of casting at each call site.
+ */
+function errorMessage(result: { error?: unknown }): string {
+  return typeof result.error === "string" ? result.error : "";
+}
+
+function backTo(c: Context, path: string, params: { ok?: string; err?: string }) {
+  const qs = new URLSearchParams();
+  if (params.ok) qs.set("ok", params.ok);
+  if (params.err) qs.set("err", params.err);
+  const query = qs.toString();
+  return c.redirect(query ? `${path}?${query}` : path, 303);
+}
+
+webRoutes.post("/claims/:id/start", requireSession, claimActionLimit, async (c) => {
+  const user = c.get("sessionUser")!;
+  const org = c.get("sessionOrg");
+  if (!org) return backTo(c, "/", { err: "Select a team first." });
+
+  const body = await c.req.parseBody();
+  const branch = String(body.branch ?? "").trim() || null;
+
+  // Never `steal: true` — taking over is its own deliberate act, never a side
+  // effect of picking something up off the queue.
+  const result = await startClaim(c.req.param("id"), {
+    userId: user.id,
+    orgId: org.id,
+    userEmail: user.email,
+    userName: user.name,
+  }, { branch });
+
+  if ("error" in result) {
+    const message = errorMessage(result);
+    const soft = message.startsWith("soft_hold");
+    return backTo(c, soft ? "/" : `/claims/${c.req.param("id")}`, {
+      err: soft
+        ? "That work overlaps a soft hold. Free the files first — it is on the board."
+        : message,
+    });
+  }
+  return backTo(c, `/claims/${result.claim.id}`, {
+    ok: "Picked up from the planned queue",
+  });
+});
+
+webRoutes.post("/claims/:id/release", requireSession, claimActionLimit, async (c) => {
+  const user = c.get("sessionUser")!;
+  const org = c.get("sessionOrg");
+  if (!org) return backTo(c, "/", { err: "Select a team first." });
+
+  const body = await c.req.parseBody();
+  const resolvedRef = String(body.resolved_ref ?? "").trim() || null;
+
+  const found = await getClaimForOrg(c.req.param("id"), org.id);
+  if ("error" in found) return backTo(c, "/", { err: "No such claim on this board." });
+
+  const result = await releaseClaim(c.req.param("id"), user.id, {
+    resolvedRef,
+    actorName: user.name ?? user.email ?? null,
+  });
+  if ("error" in result) {
+    return backTo(c, `/claims/${c.req.param("id")}`, {
+      err:
+        result.status === 403
+          ? "Only the owner can release a claim. There is no admin override."
+          : errorMessage(result),
+    });
+  }
+  return backTo(c, "/", { ok: `Released “${found.claim.title}”` });
+});
+
+webRoutes.post("/claims/:id/soft-hold/drop", requireSession, claimActionLimit, async (c) => {
+  const user = c.get("sessionUser")!;
+  const org = c.get("sessionOrg");
+  if (!org) return backTo(c, "/", { err: "Select a team first." });
+
+  const claimId = c.req.param("id");
+  const found = await getClaimForOrg(claimId, org.id);
+  if ("error" in found) return backTo(c, "/", { err: "No such claim on this board." });
+
+  // Friction proportional to actual danger: while more than half the soft hold
+  // is left, the agent went quiet under 12h ago and plausibly still lives, so
+  // the phrase must be typed. Below that it is a routine tidy-up, and tier-3
+  // friction on routine acts only trains people to type without reading.
+  const softHoldLeftMs =
+    found.claim.expiresAt.getTime() + SOFT_HOLD_SECONDS * 1000 - Date.now();
+  if (softHoldLeftMs > (SOFT_HOLD_SECONDS * 1000) / 2) {
+    const body = await c.req.parseBody();
+    const confirm = String(body.confirm ?? "").trim().toLowerCase();
+    if (confirm !== `free ${claimId}`.toLowerCase()) {
+      return backTo(c, `/claims/${claimId}`, {
+        err: `Type “free ${claimId}” to confirm`,
+      });
+    }
+  }
+
+  const result = await dropSoftHold(claimId, {
+    orgId: org.id,
+    userId: user.id,
+    userEmail: user.email,
+    userName: user.name,
+  });
+  if ("error" in result) {
+    return backTo(c, "/", {
+      err:
+        result.status === 409 || result.status === 400
+          ? "That soft hold already ended — the files are free."
+          : errorMessage(result),
+    });
+  }
+  return backTo(c, "/", {
+    ok: `Freed the files held by “${found.claim.title}”`,
+  });
 });
 
 /** Public: CLI discovers WorkOS client id for native device login. */
