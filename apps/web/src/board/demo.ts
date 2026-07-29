@@ -228,7 +228,10 @@ export function demoBoard(opts: DemoOptions): OrgBoard {
 
     const id = `clm_${(opts.seed * 7919 + i).toString(36)}`;
     const files = filesFor(r, area, 1 + Math.floor(r() * 4));
-    const title = `${pick(r, VERBS)} ${area}`;
+    // Three dimensions, not two: real claim titles name the thing, so exact
+    // duplicates are rare. A generator with 144 possible titles manufactures
+    // "two agents are doing the same work" on every board over ~40 claims.
+    const title = `${pick(r, VERBS)} ${area} ${pick(r, MODULES)}`;
     const actor = agentLabel ?? human.name;
 
     claims.push({
@@ -241,7 +244,13 @@ export function demoBoard(opts: DemoOptions): OrgBoard {
       description:
         r() < 0.3 ? `Follow-up from the ${area} review — see the thread on the roadmap item.` : null,
       files,
-      roadmapRef: r() < 0.18 ? `roadmap:R${1 + Math.floor(r() * 6)}` : null,
+      // Specific, like a real roadmap item — not one of six buckets, which
+      // would put a third of the board into a handful of giant "same work"
+      // components that no real team would ever produce.
+      roadmapRef:
+        r() < 0.1
+          ? `roadmap:R${1 + Math.floor(r() * 9)}-${pick(r, AREAS)}-${pick(r, MODULES)}`
+          : null,
       agentLabel,
       note: status === "planned" ? null : pick(r, NOTES),
       userId: `usr_${HUMANS.indexOf(human)}`,
