@@ -63,7 +63,9 @@ export async function upsertLocalOrgFromWorkOS(input: {
   // ensureMembership only inserts; WorkOS is the source of truth for roles, so
   // a role that changed remotely (promotion, healed data) must be mirrored onto
   // the existing row too — otherwise the first-ever role sticks forever.
-  if (input.role && membership.role !== input.role) {
+  // "owner" is a local-only concept (WorkOS knows them as admin) and is never
+  // downgraded by a sync.
+  if (input.role && membership.role !== input.role && membership.role !== "owner") {
     await db
       .update(memberships)
       .set({ role: input.role })
@@ -102,10 +104,31 @@ export async function syncWorkOSOrganizations(
       localUserId,
       role: membership.role?.slug ?? "member",
     });
+    await ensureOrgHasOwner(local.id);
     synced.push(local);
   }
 
   return synced;
+}
+
+/**
+ * Orgs created before the owner role existed have none. Promote the earliest
+ * admin membership so every team has exactly one owner; new orgs get their
+ * owner at creation time.
+ */
+async function ensureOrgHasOwner(orgId: string) {
+  const rows = await db
+    .select()
+    .from(memberships)
+    .where(eq(memberships.orgId, orgId))
+    .orderBy(asc(memberships.createdAt));
+  if (rows.some((r) => r.role === "owner")) return;
+  const firstAdmin = rows.find((r) => r.role === "admin");
+  if (!firstAdmin) return;
+  await db
+    .update(memberships)
+    .set({ role: "owner" })
+    .where(eq(memberships.id, firstAdmin.id));
 }
 
 export async function findOrgByWorkOSId(workosOrgId: string) {
@@ -215,11 +238,13 @@ export async function createWorkOSOrganizationAsAdmin(input: {
     });
   }
 
+  // Locally the creator is the owner; WorkOS only knows admin/member, so the
+  // remote membership above stays "admin".
   return upsertLocalOrgFromWorkOS({
     workosOrgId: remote.id,
     name: remote.name || name,
     localUserId: input.localUserId,
-    role: "admin",
+    role: "owner",
   });
 }
 

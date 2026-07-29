@@ -380,6 +380,49 @@ button.link-btn:hover {
 button.link-btn.danger { color: var(--danger); border-color: var(--danger-line, var(--line)); }
 button.link-btn.danger:hover { background: var(--danger-wash); color: var(--danger); }
 
+/* Per-row "Manage" disclosure: opening it is the are-you-sure step, so the
+   actions inside spell out exactly what they do instead of a browser confirm. */
+.row-manage { position: relative; }
+.row-manage summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+.row-manage summary::-webkit-details-marker { display: none; }
+.row-manage summary::after { content: " ▾"; }
+.row-manage[open] summary::after { content: " ▴"; }
+.row-manage summary:hover,
+.row-manage[open] summary {
+  background: var(--highlight);
+  color: var(--on-highlight);
+  border-color: var(--ink);
+}
+.row-manage-actions {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 10;
+  min-width: 240px;
+  background: var(--surface);
+  border: 1px solid var(--ink);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.row-manage-actions form { margin: 0; }
+.row-manage-actions button.link-btn {
+  width: 100%;
+  text-align: left;
+  border-color: transparent;
+}
+.row-manage-actions button.link-btn:hover { border-color: var(--ink); transform: none; }
+
 .btn-secondary, a.btn-secondary {
   background: var(--bg);
   color: var(--ink);

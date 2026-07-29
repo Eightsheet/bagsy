@@ -69,8 +69,10 @@ export async function deleteAccountEverywhere(
       soleMemberOrgIds.push(m.orgId);
       continue;
     }
-    const otherAdmin = rows.some((r) => r.userId !== userId && r.role === "admin");
-    if (m.role === "admin" && !otherAdmin) {
+    const otherAdmin = rows.some(
+      (r) => r.userId !== userId && (r.role === "admin" || r.role === "owner"),
+    );
+    if ((m.role === "admin" || m.role === "owner") && !otherAdmin) {
       return {
         ok: false,
         error: `You are the only admin of “${m.orgName}”, which still has other members. Promote another admin or remove the members first.`,

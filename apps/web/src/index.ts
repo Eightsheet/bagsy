@@ -24,6 +24,7 @@ type WebState = {
   members: SetupMember[];
   pendingInvites: SetupPendingInvite[];
   canManage: boolean;
+  selfRole: string | null;
   defaultOrgName: string;
 };
 
@@ -116,6 +117,7 @@ app.get("/", async (c) => {
     members: state.members,
     pendingInvites: state.pendingInvites,
     canManage: state.canManage,
+    selfRole: state.selfRole,
     flash: c.req.query("ok") ? decodeURIComponent(c.req.query("ok")!) : null,
     error: c.req.query("err") ? decodeURIComponent(c.req.query("err")!) : null,
     defaultOrgName: state.defaultOrgName,
