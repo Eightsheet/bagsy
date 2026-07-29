@@ -119,19 +119,31 @@ export function setupPage(opts: {
     </div>`
     : "";
 
-  const inviteExisting = org
+  const inviteForm = canManage
     ? `
     <form method="post" action="/orgs/invite" class="stack" style="margin-top:14px">
-      <h3 style="margin:0;font:inherit;font-weight:600">Invite to ${escapeHtml(org.name)}</h3>
-      <p class="muted">People join this team. Only members see its board and can claim.</p>
+      <h3 style="margin:0;font:inherit;font-weight:600">Invite to ${escapeHtml(org?.name ?? "")}</h3>
+      <p class="muted">People join this team. Only members see its board and can claim. Admins can manage members and invite.</p>
       <label>
         Email
         <input name="email" type="email" required placeholder="teammate@company.com" autocomplete="email" />
       </label>
+      <label>
+        Role
+        <select name="role">
+          <option value="member" selected>Member</option>
+          <option value="admin">Admin</option>
+        </select>
+      </label>
       <div class="row">
         <button type="submit">Send invite</button>
       </div>
-    </form>
+    </form>`
+    : `<p class="muted" style="margin-top:14px">Only team admins can invite members. Ask an admin, or create your own team below.</p>`;
+
+  const inviteExisting = org
+    ? `
+    ${inviteForm}
 
     <details class="quiet-details">
       <summary>Create another team</summary>
