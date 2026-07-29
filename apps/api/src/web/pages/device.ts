@@ -12,7 +12,7 @@ export function devicePickOrgPage(opts: {
         <h1>Authorize CLI</h1>
         <p class="meta">Choose a default team for this login</p>
       </header>
-      <p class="lede">Day to day, <code>workboard</code> picks the team from your git remote when a repo is linked. This is only the fallback if a remote isn’t linked yet.</p>
+      <p class="lede">Day to day, <code>bagsy</code> picks the team from your git remote when a repo is linked. This is only the fallback if a remote isn’t linked yet.</p>
       <p style="margin-top:12px;text-align:center"><code style="font-size:1.6em;letter-spacing:0.15em">${escapeHtml(opts.userCode)}</code></p>
       <p class="meta" style="text-align:center">Choosing a team approves this login — only continue if this code matches your terminal.</p>
       <ul class="list">
@@ -44,7 +44,7 @@ export function deviceNoOrgPage(): string {
         <h1>No team yet</h1>
         <p class="meta">Create one in Bagsy first</p>
       </header>
-      <p class="lede">Open the site, create a team (and optionally invite a teammate), then retry <code>workboard login</code>.</p>
+      <p class="lede">Open the site, create a team (and optionally invite a teammate), then retry <code>bagsy login</code>.</p>
       <p style="margin-top:14px"><a class="btn" href="/">Open Bagsy</a></p>
     </section>
   `,
@@ -89,7 +89,7 @@ export function deviceApprovePage(opts: {
         <h1>Authorize CLI</h1>
         <p class="meta">${who}${org}</p>
       </header>
-      <p class="lede">Approve this terminal login. After that, <code>workboard</code> picks the team from your git remote whenever the repo is linked.</p>
+      <p class="lede">Approve this terminal login. After that, <code>bagsy</code> picks the team from your git remote whenever the repo is linked.</p>
       <p style="margin-top:16px;text-align:center"><code style="font-size:1.6em;letter-spacing:0.15em">${escapeHtml(opts.userCode)}</code></p>
       <p class="meta" style="text-align:center">Only approve if this code matches the one in your terminal.</p>
       <form method="post" action="/device" class="stack" style="margin-top:16px">

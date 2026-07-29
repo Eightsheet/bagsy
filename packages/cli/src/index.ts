@@ -12,6 +12,7 @@ import {
 } from "./update.js";
 import {
   type AuthConfig,
+  env,
   ensureFreshAccessToken,
   fetchAuthConfig,
   loadAuthConfig,
@@ -24,21 +25,21 @@ import {
 type Team = { id: string; slug: string; name: string };
 type Config = AuthConfig;
 
-/** Injected at bundle time; overridable via WORKBOARD_API_URL. */
-declare const __WORKBOARD_DEFAULT_API_URL__: string;
-declare const __WORKBOARD_SKILL_MD__: string;
-declare const __WORKBOARD_INSTRUCTIONS_SNIPPET__: string;
+/** Injected at bundle time; overridable via BAGSY_API_URL. */
+declare const __BAGSY_DEFAULT_API_URL__: string;
+declare const __BAGSY_SKILL_MD__: string;
+declare const __BAGSY_INSTRUCTIONS_SNIPPET__: string;
 
 const DEFAULT_API_URL =
-  typeof __WORKBOARD_DEFAULT_API_URL__ !== "undefined"
-    ? __WORKBOARD_DEFAULT_API_URL__
+  typeof __BAGSY_DEFAULT_API_URL__ !== "undefined"
+    ? __BAGSY_DEFAULT_API_URL__
     : "https://repo-org-production.up.railway.app";
 
 const SKILL_MD =
-  typeof __WORKBOARD_SKILL_MD__ !== "undefined" ? __WORKBOARD_SKILL_MD__ : "";
+  typeof __BAGSY_SKILL_MD__ !== "undefined" ? __BAGSY_SKILL_MD__ : "";
 const INSTRUCTIONS_SNIPPET =
-  typeof __WORKBOARD_INSTRUCTIONS_SNIPPET__ !== "undefined"
-    ? __WORKBOARD_INSTRUCTIONS_SNIPPET__
+  typeof __BAGSY_INSTRUCTIONS_SNIPPET__ !== "undefined"
+    ? __BAGSY_INSTRUCTIONS_SNIPPET__
     : "";
 
 function loadConfig(): Config {
@@ -55,34 +56,35 @@ function die(message: string, code = 1): never {
 }
 
 function usage(): never {
-  console.log(`workboard — agent coordination CLI
+  console.log(`bagsy — agent coordination CLI
 
 Teams own linked repos. The CLI picks your team from git remote
 (when the repo is linked). If it is linked in more than one of your
 teams, you will be asked once (or pass --org slug).
 
 Usage:
-  workboard login              # opens browser → WorkOS AuthKit
-  workboard login --token TOKEN
-  workboard status [--repo owner/name] [--org slug]
-  workboard claim -t TITLE [-f FILE ...] [--roadmap REF] [--branch B] [--strict] [--steal] [--note NOTE] [--org slug]
-  workboard plan -t TITLE [-f FILE ...] [--roadmap REF] [--note NOTE]   # queue intent — no TTL, never blocks
-  workboard start CLAIM_ID [--steal]   # activate a planned claim (yours or a teammate's)
-  workboard heartbeat [--note NOTE] [--claim ID]
-  workboard release [claim-id|current] [--result PR_URL_OR_SHA] [--org slug]
-  workboard link-repo [owner/name] [--org slug]
-  workboard init               # interactive: Claude Code / Codex / Cursor (skills only)
-  workboard init --all
-  workboard init --claude-code --codex --cursor
-  workboard init --docs        # also create/append CLAUDE.md / AGENTS.md (opt-in)
-  workboard upgrade            # install latest CLI from GitHub Release (alias: update)
-  workboard whoami
-  workboard version
+  bagsy login              # opens browser → WorkOS AuthKit
+  bagsy login --token TOKEN
+  bagsy status [--repo owner/name] [--org slug]
+  bagsy claim -t TITLE [-f FILE ...] [--roadmap REF] [--branch B] [--strict] [--steal] [--note NOTE] [--org slug]
+  bagsy plan -t TITLE [-f FILE ...] [--roadmap REF] [--note NOTE]   # queue intent — no TTL, never blocks
+  bagsy start CLAIM_ID [--steal]   # activate a planned claim (yours or a teammate's)
+  bagsy heartbeat [--note NOTE] [--claim ID]
+  bagsy release [claim-id|current] [--result PR_URL_OR_SHA] [--org slug]
+  bagsy link-repo [owner/name] [--org slug]
+  bagsy init               # interactive: Claude Code / Codex / Cursor (skills only)
+  bagsy init --all
+  bagsy init --claude-code --codex --cursor
+  bagsy init --docs        # also create/append CLAUDE.md / AGENTS.md (opt-in)
+  bagsy upgrade            # install latest CLI from GitHub Release (alias: update)
+  bagsy whoami
+  bagsy version
 
 Env:
-  WORKBOARD_API_URL        API base (default: https://repo-org-production.up.railway.app)
-  WORKBOARD_TOKEN          API token override
-  WORKBOARD_NO_AUTO_UPDATE=1  Skip background auto-update checks
+  BAGSY_API_URL            API base (default: https://repo-org-production.up.railway.app)
+  BAGSY_TOKEN              API token override
+  BAGSY_NO_AUTO_UPDATE=1   Skip background auto-update checks
+  (legacy WORKBOARD_* variables still work)
 `);
   process.exit(0);
 }
@@ -90,7 +92,7 @@ Env:
 const UPDATE_CHECK_MS = 60 * 60 * 1000;
 
 async function maybeAutoUpdate(cfg: Config): Promise<void> {
-  if (process.env.WORKBOARD_NO_AUTO_UPDATE === "1") return;
+  if (env("NO_AUTO_UPDATE") === "1") return;
   const last = cfg.lastUpdateCheck ? Date.parse(cfg.lastUpdateCheck) : 0;
   if (!Number.isNaN(last) && Date.now() - last < UPDATE_CHECK_MS) return;
 
@@ -104,10 +106,10 @@ async function maybeAutoUpdate(cfg: Config): Promise<void> {
   try {
     const info = await fetchCliUpdate(cfg.apiUrl);
     if (!info || !shouldAutoUpdate(info)) return;
-    console.error(`Updating workboard ${CLI_VERSION} → ${info.version} (${info.channel})…`);
+    console.error(`Updating bagsy ${CLI_VERSION} → ${info.version} (${info.channel})…`);
     const result = installCliTarball(info.tarballUrl);
     if (result.ok) {
-      console.error(`Updated workboard → ${info.version}. Re-run your command if needed.`);
+      console.error(`Updated bagsy → ${info.version}. Re-run your command if needed.`);
     } else {
       console.error(`Auto-update failed: ${result.detail}`);
     }
@@ -124,10 +126,10 @@ async function upgrade(_args: string[]): Promise<void> {
     console.log(`Already on latest: ${CLI_VERSION} (channel ${info.channel})`);
     return;
   }
-  console.log(`Installing workboard ${info.version} (current ${CLI_VERSION})…`);
+  console.log(`Installing bagsy ${info.version} (current ${CLI_VERSION})…`);
   const result = installCliTarball(info.tarballUrl);
   if (!result.ok) die(`Upgrade failed:\n${result.detail}`);
-  console.log(`Updated workboard → ${info.version}`);
+  console.log(`Updated bagsy → ${info.version}`);
   cfg.lastUpdateCheck = new Date().toISOString();
   saveConfig(cfg);
 }
@@ -139,7 +141,7 @@ async function api(
   orgSlug?: string,
 ): Promise<{ status: number; json: any }> {
   let current = await ensureFreshAccessToken(cfg);
-  if (!current.token) die("Not logged in. Run: workboard login");
+  if (!current.token) die("Not logged in. Run: bagsy login");
 
   const run = async (token: string) => {
     const headers: Record<string, string> = {
@@ -148,7 +150,11 @@ async function api(
       ...(init.headers as Record<string, string> | undefined),
     };
     const team = orgSlug ?? current.orgSlug;
-    if (team) headers["X-Workboard-Org"] = team;
+    if (team) {
+      // Legacy header kept until every deployed API reads X-Bagsy-Org.
+      headers["X-Bagsy-Org"] = team;
+      headers["X-Workboard-Org"] = team;
+    }
 
     const res = await fetch(`${current.apiUrl.replace(/\/$/, "")}${path}`, {
       ...init,
@@ -165,7 +171,7 @@ async function api(
   };
 
   let result = await run(current.token!);
-  if (result.status === 401 && current.refreshToken && !process.env.WORKBOARD_TOKEN) {
+  if (result.status === 401 && current.refreshToken && !env("TOKEN")) {
     try {
       current = await refreshAccessToken(current);
       Object.assign(cfg, current);
@@ -285,7 +291,7 @@ async function resolveLinkedTeam(
     if (!ctx.linked.some((t) => t.slug === explicitOrg)) {
       die(
         `Repo ${repo} is not linked to team "${explicitOrg}".\n` +
-          `Link it: workboard link-repo ${repo} --org ${explicitOrg}`,
+          `Link it: bagsy link-repo ${repo} --org ${explicitOrg}`,
       );
     }
     rememberTeam(cfg, repo, match.slug);
@@ -338,7 +344,7 @@ async function resolveTeamForLink(
   }
 
   if (ctx.memberships.length === 0) {
-    die("You have no team yet. Open Workboard in the browser, create a team, then retry.");
+    die("You have no team yet. Open Bagsy in the browser, create a team, then retry.");
   }
 
   if (ctx.memberships.length === 1) {
@@ -420,7 +426,7 @@ async function status(args: string[]) {
   const team = await resolveLinkedTeam(cfg, repo, argValue(args, "--org"));
   if (!team) {
     console.log(`Repo ${repo} is not linked to any of your teams.`);
-    console.log(`Link it: workboard link-repo ${repo}`);
+    console.log(`Link it: bagsy link-repo ${repo}`);
     process.exit(2);
   }
 
@@ -428,7 +434,7 @@ async function status(args: string[]) {
   const res = await api(cfg, `/v1/repos/${owner}/${name}/claims`, {}, team.slug);
   if (res.status === 404) {
     console.log(`Repo ${repo} is not linked to team ${team.slug}.`);
-    console.log(`Link it: workboard link-repo ${repo} --org ${team.slug}`);
+    console.log(`Link it: bagsy link-repo ${repo} --org ${team.slug}`);
     process.exit(2);
   }
   if (res.status !== 200) die(`status failed (${res.status}): ${JSON.stringify(res.json)}`);
@@ -457,7 +463,7 @@ async function status(args: string[]) {
   }
   if (planned.length) {
     console.log("");
-    console.log(`Planned (queued intent — pick up with: workboard start <id>):`);
+    console.log(`Planned (queued intent — pick up with: bagsy start <id>):`);
     for (const claim of planned) {
       console.log("---");
       console.log(`# ${claim.id} [PLANNED]`);
@@ -480,7 +486,7 @@ async function claim(args: string[], opts?: { planned?: boolean }) {
   const repo = detectRepo(argValue(args, "--repo"));
   const team = await resolveLinkedTeam(cfg, repo, argValue(args, "--org"));
   if (!team) {
-    die(`Repo ${repo} is not linked. Run: workboard link-repo ${repo}`);
+    die(`Repo ${repo} is not linked. Run: bagsy link-repo ${repo}`);
   }
 
   const [owner, name] = repo.split("/");
@@ -490,7 +496,7 @@ async function claim(args: string[], opts?: { planned?: boolean }) {
     description: argValue(args, "--desc") ?? argValue(args, "--description") ?? null,
     branch: planned ? argValue(args, "--branch") ?? null : argValue(args, "--branch") ?? detectBranch(),
     roadmapRef: argValue(args, "--roadmap") ?? null,
-    agentLabel: argValue(args, "--agent") ?? process.env.WORKBOARD_AGENT_LABEL ?? null,
+    agentLabel: argValue(args, "--agent") ?? env("AGENT_LABEL") ?? null,
     note: argValue(args, "--note") ?? null,
     strict: hasFlag(args, "--strict"),
     steal: hasFlag(args, "--steal"),
@@ -507,7 +513,7 @@ async function claim(args: string[], opts?: { planned?: boolean }) {
     if (err.startsWith("soft_hold")) {
       console.error("Soft hold — overlapping claim went stale (agent may still have local WIP):");
       console.error(JSON.stringify(res.json.overlaps, null, 2));
-      console.error("Take over with: workboard claim ... --steal");
+      console.error("Take over with: bagsy claim ... --steal");
       process.exit(3);
     }
     console.error("Strict overlap blocked:");
@@ -518,7 +524,7 @@ async function claim(args: string[], opts?: { planned?: boolean }) {
   if (planned) {
     console.log(`Planned ${res.json.claim.id}: ${res.json.claim.title}`);
     console.log(`Team: ${team.name} (${team.slug})`);
-    console.log(`Pick it up later with: workboard start ${res.json.claim.id}`);
+    console.log(`Pick it up later with: bagsy start ${res.json.claim.id}`);
   } else {
     cfg.currentClaimId = res.json.claim.id;
     saveConfig(cfg);
@@ -537,11 +543,11 @@ async function claim(args: string[], opts?: { planned?: boolean }) {
 async function start(args: string[]) {
   const cfg = loadConfig();
   const id = args.find((a) => !a.startsWith("-"));
-  if (!id) die("start requires a claim id: workboard start CLAIM_ID (see workboard status)");
+  if (!id) die("start requires a claim id: bagsy start CLAIM_ID (see bagsy status)");
   const body = {
     steal: hasFlag(args, "--steal"),
     branch: argValue(args, "--branch") ?? detectBranch(),
-    agentLabel: argValue(args, "--agent") ?? process.env.WORKBOARD_AGENT_LABEL ?? null,
+    agentLabel: argValue(args, "--agent") ?? env("AGENT_LABEL") ?? null,
   };
   const res = await api(
     cfg,
@@ -552,7 +558,7 @@ async function start(args: string[]) {
   if (res.status === 409) {
     console.error("Soft hold — overlapping claim went stale (agent may still have local WIP):");
     console.error(JSON.stringify(res.json.overlaps, null, 2));
-    console.error(`Take over with: workboard start ${id} --steal`);
+    console.error(`Take over with: bagsy start ${id} --steal`);
     process.exit(3);
   }
   if (res.status !== 200) die(`start failed (${res.status}): ${JSON.stringify(res.json)}`);
@@ -659,7 +665,7 @@ async function linkRepo(args: string[]) {
     }
     const team = await resolveLinkedTeam(cfg, repo);
     console.log(`Already linked in multiple teams. Using ${team!.name} (${team!.slug}).`);
-    console.log(`To link into another team: workboard link-repo ${repo} --org <slug>`);
+    console.log(`To link into another team: bagsy link-repo ${repo} --org <slug>`);
     return;
   }
 
@@ -699,7 +705,7 @@ async function whoami() {
 
 async function init(args: string[]) {
   if (!SKILL_MD || !INSTRUCTIONS_SNIPPET) {
-    die("This build is missing embedded skill assets. Reinstall workboard-cli.");
+    die("This build is missing embedded skill assets. Reinstall bagsy.");
   }
 
   type Target = "claude-code" | "codex" | "cursor";
@@ -717,11 +723,11 @@ async function init(args: string[]) {
   if (flagTargets.size > 0) {
     selected = allTargets.filter((t) => flagTargets.has(t));
   } else if (input.isTTY) {
-    console.error("Install Workboard skills for:");
+    console.error("Install Bagsy skills for:");
     console.error("  1. All (Claude Code + Codex + Cursor)  [default]");
-    console.error("  2. Claude Code  → .claude/skills/workboard");
-    console.error("  3. Codex        → .agents/skills/workboard");
-    console.error("  4. Cursor       → .cursor/skills/workboard");
+    console.error("  2. Claude Code  → .claude/skills/bagsy");
+    console.error("  3. Codex        → .agents/skills/bagsy");
+    console.error("  4. Cursor       → .cursor/skills/bagsy");
     console.error("  5. Custom — e.g. 2,3");
     const rl = createInterface({ input, output });
     try {
@@ -768,7 +774,8 @@ async function init(args: string[]) {
 
   const cwd = process.cwd();
   const skillBody = SKILL_MD.endsWith("\n") ? SKILL_MD : `${SKILL_MD}\n`;
-  const marker = "## Workboard (required before coding)";
+  const marker = "## Bagsy (required before coding)";
+  const legacyMarker = "## Workboard (required before coding)";
   const instructions = INSTRUCTIONS_SNIPPET.trim() + "\n";
 
   function writeSkill(relDir: string) {
@@ -783,13 +790,13 @@ async function init(args: string[]) {
     const path = join(cwd, filename);
     if (existsSync(path)) {
       const existing = readFileSync(path, "utf8");
-      if (existing.includes(marker)) {
-        console.log(`${filename} already has a Workboard section — left unchanged.`);
+      if (existing.includes(marker) || existing.includes(legacyMarker)) {
+        console.log(`${filename} already has a Bagsy section — left unchanged.`);
         return;
       }
       const sep = existing.endsWith("\n") || existing.length === 0 ? "\n" : "\n\n";
       writeFileSync(path, `${existing}${sep}${instructions}`);
-      console.log(`Appended Workboard section to ${filename}`);
+      console.log(`Appended Bagsy section to ${filename}`);
     } else {
       writeFileSync(path, `${instructions}\n`);
       console.log(`Created ${filename}`);
@@ -797,15 +804,15 @@ async function init(args: string[]) {
   }
 
   if (selected.includes("claude-code")) {
-    writeSkill(".claude/skills/workboard");
+    writeSkill(".claude/skills/bagsy");
     if (writeDocs) upsertDoc("CLAUDE.md");
   }
   if (selected.includes("codex")) {
-    writeSkill(".agents/skills/workboard");
+    writeSkill(".agents/skills/bagsy");
     if (writeDocs) upsertDoc("AGENTS.md");
   }
   if (selected.includes("cursor")) {
-    writeSkill(".cursor/skills/workboard");
+    writeSkill(".cursor/skills/bagsy");
   }
 
   if (!writeDocs && (selected.includes("claude-code") || selected.includes("codex"))) {
@@ -813,6 +820,10 @@ async function init(args: string[]) {
   }
 
   console.log(`Done: ${selected.join(", ")}${writeDocs ? " (+ docs)" : ""}`);
+}
+
+if ((process.argv[1] ?? "").split("/").pop() === "workboard") {
+  console.error("Note: workboard is now bagsy — the workboard alias will go away in a future release.");
 }
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -864,7 +875,7 @@ try {
       console.log(CLI_VERSION);
       break;
     default:
-      die(`Unknown command: ${cmd}\nRun workboard --help`);
+      die(`Unknown command: ${cmd}\nRun bagsy --help`);
   }
 } catch (err) {
   die(err instanceof Error ? err.message : String(err));

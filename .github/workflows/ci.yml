@@ -25,8 +25,8 @@ jobs:
       - run: pnpm install --frozen-lockfile=false
       - run: pnpm --filter @repo-org/shared build
       - run: pnpm --filter @repo-org/api exec tsc -p tsconfig.json --noEmit
-      - run: pnpm --filter workboard-cli build
-      - run: node packages/cli/dist/workboard.js --help
+      - run: pnpm --filter bagsy build
+      - run: node packages/cli/dist/bagsy.js --help
       - name: Pack CLI (smoke)
         run: |
           cd packages/cli

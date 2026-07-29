@@ -7,10 +7,12 @@ on:
 
 permissions:
   contents: write
+  # OIDC token for npm trusted publishing (no NPM_TOKEN secret needed).
+  id-token: write
 
 jobs:
   release:
-    name: Publish workboard CLI
+    name: Publish bagsy CLI
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,12 +21,13 @@ jobs:
           version: 9.15.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # Node 24 ships npm >= 11.5.1, required for trusted publishing.
+          node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile=false
       - run: pnpm --filter @repo-org/shared build
-      - run: pnpm --filter workboard-cli build
+      - run: pnpm --filter bagsy build
 
       - name: Read version
         id: ver
@@ -34,25 +37,48 @@ jobs:
         working-directory: packages/cli
         run: npm version "${{ steps.ver.outputs.version }}" --no-git-tag-version --allow-same-version
 
+      # devDependencies use workspace:* which npm would publish verbatim;
+      # the bundle is self-contained, so drop them from the published manifest.
+      - name: Strip devDependencies
+        working-directory: packages/cli
+        run: npm pkg delete devDependencies
+
       - name: Pack tarball
         working-directory: packages/cli
-        run: npm pack
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          npm pack
+          # Old workboard-cli installs auto-update from an asset with the
+          # legacy name — attach the same tarball under both names.
+          cp "bagsy-${VERSION}.tgz" "workboard-cli-${VERSION}.tgz"
 
       - name: Upload GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: packages/cli/workboard-cli-*.tgz
+          files: |
+            packages/cli/bagsy-*.tgz
+            packages/cli/workboard-cli-*.tgz
           generate_release_notes: true
           body: |
             ## Install
 
-            Not published to the npm registry. Install from this release tarball:
-
             ```bash
-            npm install -g https://github.com/Eightsheet/repo-org/releases/download/v${{ steps.ver.outputs.version }}/workboard-cli-${{ steps.ver.outputs.version }}.tgz
+            npm install -g bagsy
             ```
 
             ```bash
-            workboard login
-            workboard status
+            bagsy login
+            bagsy status
             ```
+
+      - name: Publish to npm (trusted publishing / OIDC)
+        working-directory: packages/cli
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          if npm view "bagsy@${VERSION}" version >/dev/null 2>&1; then
+            echo "bagsy@${VERSION} already on npm — skipping publish."
+          else
+            npm publish --access public
+          fi

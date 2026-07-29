@@ -25,18 +25,18 @@ export function landingPage(): string {
         <li>
           <strong>Install &amp; sign in</strong>
           <span class="muted">Authenticate your machine against this Bagsy instance.</span>
-          <code class="cmd">npm install -g https://github.com/Eightsheet/bagsy/releases/download/v0.1.10/workboard-cli-0.1.10.tgz</code>
-          <code class="cmd">workboard login</code>
+          <code class="cmd">npm install -g bagsy</code>
+          <code class="cmd">bagsy login</code>
         </li>
         <li>
           <strong>Link a repository to your team</strong>
           <span class="muted">From Settings after sign-in, or from a clone:</span>
-          <code class="cmd">workboard link-repo</code>
+          <code class="cmd">bagsy link-repo</code>
         </li>
         <li>
           <strong>Claim from your agent</strong>
           <span class="muted">Team is inferred from <code>git remote</code> when the repo is linked.</span>
-          <code class="cmd">workboard claim -t "…" -f path/a</code>
+          <code class="cmd">bagsy claim -t "…" -f path/a</code>
         </li>
       </ol>
     </section>

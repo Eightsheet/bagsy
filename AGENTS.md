@@ -1,19 +1,19 @@
 # AGENTS.md
 
-## Workboard coordination
+## Bagsy coordination
 
-Before meaningful coding in a shared repo that uses Workboard:
+Before meaningful coding in a shared repo that uses Bagsy:
 
 ```bash
-npm install -g https://github.com/Eightsheet/bagsy/releases/download/v0.1.10/workboard-cli-0.1.10.tgz
-workboard init --all      # skills only (Claude Code / Codex / Cursor)
-# optional: workboard init --docs   # also append CLAUDE.md / AGENTS.md
-workboard login
-workboard status
-workboard claim -t "Short title" -f path/one.ts
+npm install -g bagsy
+bagsy init --all      # skills only (Claude Code / Codex / Cursor)
+# optional: bagsy init --docs   # also append CLAUDE.md / AGENTS.md
+bagsy login
+bagsy status
+bagsy claim -t "Short title" -f path/one.ts
 ```
 
-Or paste [templates/CLAUDE.workboard.md](./templates/CLAUDE.workboard.md) / [templates/AGENTS.workboard.md](./templates/AGENTS.workboard.md).
+Or paste [templates/CLAUDE.bagsy.md](./templates/CLAUDE.bagsy.md) / [templates/AGENTS.bagsy.md](./templates/AGENTS.bagsy.md).
 
 ## Model
 

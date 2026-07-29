@@ -1,6 +1,6 @@
-# Workboard
+# Bagsy
 
-Agent coordination service: claim what you're working on in a shared repo so other agents/humans don't duplicate work.
+Agent coordination service: bagsy (claim) what you're working on in a shared repo so other agents/humans don't duplicate work.
 
 ## Try it (hosted, free)
 
@@ -9,10 +9,10 @@ A public instance runs on Railway — no self-hosting needed to try:
 **https://repo-org-production.up.railway.app**
 
 1. Install the CLI (below)
-2. `workboard login` — opens AuthKit in the browser
-3. Create a team, invite people, link a repo, then `workboard claim …`
+2. `bagsy login` — opens AuthKit in the browser
+3. Create a team, invite people, link a repo, then `bagsy claim …`
 
-The CLI talks to that URL by default. Override only if you run your own API: `WORKBOARD_API_URL=…`
+The CLI talks to that URL by default. Override only if you run your own API: `BAGSY_API_URL=…`
 
 ## Model
 
@@ -22,19 +22,19 @@ The CLI talks to that URL by default. Override only if you run your own API: `WO
 
 ## Install CLI
 
-Install from the [GitHub Release](https://github.com/Eightsheet/bagsy/releases/latest) tarball (not on the npm registry yet):
-
 ```bash
-npm install -g https://github.com/Eightsheet/bagsy/releases/download/v0.1.10/workboard-cli-0.1.10.tgz
+npm install -g bagsy
 ```
+
+Upgrading from the old `workboard-cli` tarball install: `npm uninstall -g workboard-cli && npm install -g bagsy`. Your login carries over; `workboard` keeps working as a deprecated alias.
 
 Then:
 
 ```bash
-workboard init                 # interactive picker (skills)
-workboard init --all           # skills for Claude Code + Codex + Cursor
-workboard init --claude-code --codex
-workboard init --docs          # opt-in: also create/append CLAUDE.md / AGENTS.md
+bagsy init                 # interactive picker (skills)
+bagsy init --all           # skills for Claude Code + Codex + Cursor
+bagsy init --claude-code --codex
+bagsy init --docs          # opt-in: also create/append CLAUDE.md / AGENTS.md
 ```
 
 `CLAUDE.md` / `AGENTS.md` are **not** auto-appended unless you pass `--docs` (or say yes in the interactive prompt).
@@ -43,22 +43,22 @@ What gets written:
 
 | Target | Skill | Instructions (only with `--docs`) |
 |--------|--------|-----------------------------------|
-| Claude Code | `.claude/skills/workboard/SKILL.md` | `CLAUDE.md` |
-| Codex | `.agents/skills/workboard/SKILL.md` | `AGENTS.md` |
-| Cursor | `.cursor/skills/workboard/SKILL.md` | — |
+| Claude Code | `.claude/skills/bagsy/SKILL.md` | `CLAUDE.md` |
+| Codex | `.agents/skills/bagsy/SKILL.md` | `AGENTS.md` |
+| Cursor | `.cursor/skills/bagsy/SKILL.md` | — |
 
 ### Auth (WorkOS JWT)
 
-CLI login uses **WorkOS device authorization** and stores an AuthKit access JWT (+ refresh) in `~/.config/repo-org/config.json` (mode `0600`).
+CLI login uses **WorkOS device authorization** and stores an AuthKit access JWT (+ refresh) in `~/.config/bagsy/config.json` (mode `0600`). A pre-rename `~/.config/repo-org/config.json` is migrated automatically on first run.
 
 API `/v1/*` validates the Bearer token via WorkOS JWKS (`client_id` app binding; flexible `iss` for multi-app).
 
 ```bash
-workboard login          # WorkOS device flow
-workboard upgrade        # then re-login after auth migrations
+bagsy login          # WorkOS device flow
+bagsy upgrade        # then re-login after auth migrations
 ```
 
-Old opaque CLI tokens no longer work — run `workboard login` again after upgrading.
+Old opaque CLI tokens no longer work — run `bagsy login` again after upgrading.
 
 ### Updates
 
@@ -70,15 +70,15 @@ The CLI checks the hosted API about once an hour and may auto-install a newer re
 Manual upgrade (always immediate):
 
 ```bash
-workboard upgrade   # alias: workboard update
-workboard version
+bagsy upgrade   # alias: bagsy update
+bagsy version
 ```
 
-Disable background checks: `WORKBOARD_NO_AUTO_UPDATE=1`.
+Disable background checks: `BAGSY_NO_AUTO_UPDATE=1`. Legacy `WORKBOARD_*` env vars are still honored.
 
 API operators set the channel with `WORKBOARD_CLI_UPDATE_CHANNEL=stable|dev`.
 
-For agents: see [AGENTS.md](./AGENTS.md), [templates/CLAUDE.workboard.md](./templates/CLAUDE.workboard.md), [templates/AGENTS.workboard.md](./templates/AGENTS.workboard.md).
+For agents: see [AGENTS.md](./AGENTS.md), [templates/CLAUDE.bagsy.md](./templates/CLAUDE.bagsy.md), [templates/AGENTS.bagsy.md](./templates/AGENTS.bagsy.md).
 
 ## WorkOS AuthKit
 
@@ -92,12 +92,12 @@ Enable / verify in the [WorkOS Dashboard](https://dashboard.workos.com):
    - (local) `http://localhost:3000/auth/callback`
 3. Use the **same** Application’s Client ID + API key that Railway has (mismatch → `invalid_client`)
 
-Optional: email/password or social connections under AuthKit as you prefer — Workboard only needs the AuthKit redirect flow.
+Optional: email/password or social connections under AuthKit as you prefer — Bagsy only needs the AuthKit redirect flow.
 
 ## Stack
 
 - **API + Web:** Hono on Railway (`apps/api`)
-- **CLI:** `workboard` (`packages/cli`) — distributed via GitHub Releases as `workboard-cli-*.tgz`
+- **CLI:** `bagsy` (`packages/cli`) — published to npm via trusted publishing (OIDC); GitHub Releases carry the same tarball
 - **Auth:** WorkOS AuthKit + API tokens for CLI/agents
 - **Tenancy:** Org-gated boards; repo as key within a team; optional GitHub verify
 
@@ -121,15 +121,15 @@ pnpm --filter @repo-org/api dev
 CLI against local API:
 
 ```bash
-pnpm --filter workboard-cli build
-WORKBOARD_API_URL=http://localhost:3000 node packages/cli/dist/workboard.js login
+pnpm --filter bagsy build
+BAGSY_API_URL=http://localhost:3000 node packages/cli/dist/bagsy.js login
 ```
 
-1. `workboard login` → browser WorkOS AuthKit  
-2. `workboard link-repo` (once per team board)  
-3. `workboard status` / `workboard claim -t "…" -f src/x.ts`
+1. `bagsy login` → browser WorkOS AuthKit  
+2. `bagsy link-repo` (once per team board)  
+3. `bagsy status` / `bagsy claim -t "…" -f src/x.ts`
 
-Create a team or invite a teammate from the web UI — Workboard creates the WorkOS org and makes you admin.
+Create a team or invite a teammate from the web UI — Bagsy creates the WorkOS org and makes you admin.
 
 WorkOS redirect URIs:
 
@@ -139,21 +139,21 @@ WorkOS redirect URIs:
 ## CLI
 
 ```bash
-workboard login
-workboard status [--org slug]
-workboard claim -t "Title" -f path/a [--strict] [--org slug]
-workboard heartbeat --note "…"
-workboard release current
-workboard link-repo [--org slug]
-workboard init [--all|--claude-code|--codex|--cursor] [--docs]
-workboard whoami
+bagsy login
+bagsy status [--org slug]
+bagsy claim -t "Title" -f path/a [--strict] [--org slug]
+bagsy heartbeat --note "…"
+bagsy release current
+bagsy link-repo [--org slug]
+bagsy init [--all|--claude-code|--codex|--cursor] [--docs]
+bagsy whoami
 ```
 
-Config: `~/.config/repo-org/config.json`
+Config: `~/.config/bagsy/config.json`
 
 ## Releases
 
-- Tag `vX.Y.Z` → GitHub Actions builds the CLI and attaches `workboard-cli-X.Y.Z.tgz` to the Release.
+- Tag `vX.Y.Z` → GitHub Actions builds the CLI, attaches `bagsy-X.Y.Z.tgz` (plus a legacy-named copy for old auto-updaters) to the Release, and publishes to npm via trusted publishing.
 - `main` is protected: PRs required, no force-push, no branch deletion.
 
 ## Security
@@ -178,6 +178,6 @@ See [SECURITY.md](./SECURITY.md). Making the repo public does **not** open the h
 - `GET /v1/cli/update` — public; latest CLI version + channel
 - `GET /v1/me`
 - `GET /v1/repos/:owner/:repo/context`
-- `GET|POST /v1/repos/:owner/:repo/claims` — header `X-Workboard-Org: slug`
+- `GET|POST /v1/repos/:owner/:repo/claims` — header `X-Workboard-Org: slug` (the CLI also sends `X-Bagsy-Org`)
 - `POST /v1/claims/:id/heartbeat|release`
 - `POST /v1/repos` — link repo

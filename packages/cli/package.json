@@ -1,19 +1,20 @@
 {
-  "name": "workboard-cli",
-  "version": "0.1.10",
-  "description": "CLI for Workboard agent coordination — claim work on shared repos",
+  "name": "bagsy",
+  "version": "0.2.0",
+  "description": "Bagsy — claim work on shared repos so agents and humans don't duplicate effort",
   "type": "module",
   "bin": {
-    "workboard": "./dist/workboard.js"
+    "bagsy": "./dist/bagsy.js",
+    "workboard": "./dist/bagsy.js"
   },
   "files": [
-    "dist/workboard.js",
+    "dist/bagsy.js",
     "README.md"
   ],
   "scripts": {
     "build": "node ./scripts/build.mjs",
     "dev": "tsx src/index.ts",
-    "start": "node dist/workboard.js",
+    "start": "node dist/bagsy.js",
     "prepack": "npm run build"
   },
   "engines": {
@@ -29,6 +30,7 @@
     "url": "https://github.com/Eightsheet/bagsy/issues"
   },
   "keywords": [
+    "bagsy",
     "workboard",
     "agents",
     "cli",

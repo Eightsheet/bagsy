@@ -8,10 +8,10 @@ export type CliUpdateInfo = {
   delayHours: number;
 };
 
-declare const __WORKBOARD_VERSION__: string;
+declare const __BAGSY_VERSION__: string;
 
 export const CLI_VERSION =
-  typeof __WORKBOARD_VERSION__ !== "undefined" ? __WORKBOARD_VERSION__ : "0.0.0";
+  typeof __BAGSY_VERSION__ !== "undefined" ? __BAGSY_VERSION__ : "0.0.0";
 
 /** Compare dotted versions; returns -1 / 0 / 1. Non-numeric parts treated as 0. */
 export function cmpVersion(a: string, b: string): number {

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = join(root, "dist");
-const outfile = join(outDir, "workboard.js");
+const outfile = join(outDir, "bagsy.js");
 const assetsDir = join(root, "assets");
 
 rmSync(outDir, { recursive: true, force: true });
@@ -27,13 +27,14 @@ await build({
     js: "#!/usr/bin/env node",
   },
   define: {
-    __WORKBOARD_DEFAULT_API_URL__: JSON.stringify(
-      process.env.WORKBOARD_DEFAULT_API_URL ??
+    __BAGSY_DEFAULT_API_URL__: JSON.stringify(
+      process.env.BAGSY_DEFAULT_API_URL ??
+        process.env.WORKBOARD_DEFAULT_API_URL ??
         "https://repo-org-production.up.railway.app",
     ),
-    __WORKBOARD_SKILL_MD__: JSON.stringify(skillMd),
-    __WORKBOARD_INSTRUCTIONS_SNIPPET__: JSON.stringify(instructionsSnippet),
-    __WORKBOARD_VERSION__: JSON.stringify(pkg.version),
+    __BAGSY_SKILL_MD__: JSON.stringify(skillMd),
+    __BAGSY_INSTRUCTIONS_SNIPPET__: JSON.stringify(instructionsSnippet),
+    __BAGSY_VERSION__: JSON.stringify(pkg.version),
   },
   logLevel: "info",
 });
@@ -42,7 +43,7 @@ chmodSync(outfile, 0o755);
 writeFileSync(join(outDir, ".bundle-ok"), "ok\n");
 
 // Keep repo Cursor skill in sync with the packaged skill.
-const repoSkill = join(root, "..", "..", ".cursor", "skills", "workboard", "SKILL.md");
+const repoSkill = join(root, "..", "..", ".cursor", "skills", "bagsy", "SKILL.md");
 try {
   mkdirSync(dirname(repoSkill), { recursive: true });
   copyFileSync(join(assetsDir, "skill", "SKILL.md"), repoSkill);

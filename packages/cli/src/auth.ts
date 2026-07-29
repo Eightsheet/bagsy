@@ -11,9 +11,14 @@ import {
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+/** Read BAGSY_<name>, falling back to the legacy WORKBOARD_<name>. */
+export function env(name: string): string | undefined {
+  return process.env[`BAGSY_${name}`] ?? process.env[`WORKBOARD_${name}`];
+}
+
 export type AuthConfig = {
   apiUrl: string;
-  /** WorkOS access JWT (or WORKBOARD_TOKEN override). */
+  /** WorkOS access JWT (or BAGSY_TOKEN override). */
   token?: string;
   refreshToken?: string;
   /** Epoch ms when access token should be refreshed. */
@@ -24,9 +29,21 @@ export type AuthConfig = {
   lastUpdateCheck?: string;
 };
 
-const CONFIG_DIR = join(homedir(), ".config", "repo-org");
+const CONFIG_DIR = join(homedir(), ".config", "bagsy");
 const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 const LOCK_PATH = join(CONFIG_DIR, "token.refresh.lock");
+const LEGACY_CONFIG_PATH = join(homedir(), ".config", "repo-org", "config.json");
+
+/** One-time copy of the pre-rename config so existing logins survive. */
+function migrateLegacyConfig(): void {
+  if (existsSync(CONFIG_PATH) || !existsSync(LEGACY_CONFIG_PATH)) return;
+  try {
+    mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
+    writeFileSync(CONFIG_PATH, readFileSync(LEGACY_CONFIG_PATH), { mode: 0o600 });
+  } catch {
+    // Fall through — worst case the user logs in again.
+  }
+}
 
 export function configDir(): string {
   return CONFIG_DIR;
@@ -37,16 +54,17 @@ export function configPath(): string {
 }
 
 export function loadAuthConfig(defaultApiUrl: string): AuthConfig {
+  migrateLegacyConfig();
   if (!existsSync(CONFIG_PATH)) {
-    return { apiUrl: process.env.WORKBOARD_API_URL ?? defaultApiUrl };
+    return { apiUrl: env("API_URL") ?? defaultApiUrl };
   }
   const raw = JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as AuthConfig & {
     tokenExpiresAt?: number | string;
   };
   return {
-    apiUrl: process.env.WORKBOARD_API_URL ?? raw.apiUrl ?? defaultApiUrl,
-    token: process.env.WORKBOARD_TOKEN ?? raw.token,
-    refreshToken: process.env.WORKBOARD_TOKEN ? undefined : raw.refreshToken,
+    apiUrl: env("API_URL") ?? raw.apiUrl ?? defaultApiUrl,
+    token: env("TOKEN") ?? raw.token,
+    refreshToken: env("TOKEN") ? undefined : raw.refreshToken,
     tokenExpiresAt:
       typeof raw.tokenExpiresAt === "number"
         ? raw.tokenExpiresAt
@@ -214,7 +232,7 @@ export async function workosDeviceLogin(opts: {
       continue;
     }
     if (err === "access_denied") throw new Error("Login was denied in the browser.");
-    if (err === "expired_token") throw new Error("Login code expired. Run workboard login again.");
+    if (err === "expired_token") throw new Error("Login code expired. Run bagsy login again.");
     throw new Error(
       typeof body.error_description === "string"
         ? body.error_description
@@ -222,7 +240,7 @@ export async function workosDeviceLogin(opts: {
     );
   }
 
-  throw new Error("Login timed out. Run workboard login again.");
+  throw new Error("Login timed out. Run bagsy login again.");
 }
 
 function applyTokens(cfg: AuthConfig, tokens: TokenResponse): AuthConfig {
@@ -237,9 +255,9 @@ function applyTokens(cfg: AuthConfig, tokens: TokenResponse): AuthConfig {
 }
 
 export async function refreshAccessToken(cfg: AuthConfig): Promise<AuthConfig> {
-  if (process.env.WORKBOARD_TOKEN) return cfg;
+  if (env("TOKEN")) return cfg;
   if (!cfg.refreshToken) {
-    throw new Error("Session expired. Run: workboard login");
+    throw new Error("Session expired. Run: bagsy login");
   }
 
   return withRefreshLock(async () => {
@@ -255,7 +273,7 @@ export async function refreshAccessToken(cfg: AuthConfig): Promise<AuthConfig> {
     }
 
     const refreshToken = latest.refreshToken || cfg.refreshToken;
-    if (!refreshToken) throw new Error("Session expired. Run: workboard login");
+    if (!refreshToken) throw new Error("Session expired. Run: bagsy login");
 
     const res = await fetch(`${cfg.apiUrl.replace(/\/$/, "")}/v1/auth/refresh`, {
       method: "POST",
@@ -270,7 +288,7 @@ export async function refreshAccessToken(cfg: AuthConfig): Promise<AuthConfig> {
       if (again.token && again.refreshToken && again.refreshToken !== refreshToken) {
         return { ...cfg, ...again, apiUrl: cfg.apiUrl };
       }
-      throw new Error(body.message || body.error || "Refresh failed. Run: workboard login");
+      throw new Error(body.message || body.error || "Refresh failed. Run: bagsy login");
     }
 
     const next = applyTokens({ ...cfg, ...latest, apiUrl: cfg.apiUrl }, body);
@@ -280,7 +298,7 @@ export async function refreshAccessToken(cfg: AuthConfig): Promise<AuthConfig> {
 }
 
 export async function ensureFreshAccessToken(cfg: AuthConfig): Promise<AuthConfig> {
-  if (process.env.WORKBOARD_TOKEN) return cfg;
+  if (env("TOKEN")) return cfg;
   if (!cfg.token) return cfg;
   if (cfg.tokenExpiresAt && cfg.tokenExpiresAt > Date.now()) return cfg;
   if (!cfg.refreshToken) return cfg;

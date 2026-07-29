@@ -554,7 +554,7 @@ webRoutes.post(
       });
     } catch (err) {
       console.warn("refresh failed", err);
-      return c.json({ error: "invalid_grant", message: "Refresh failed. Run workboard login again." }, 401);
+      return c.json({ error: "invalid_grant", message: "Refresh failed. Run bagsy login again." }, 401);
     }
   },
 );
@@ -581,7 +581,7 @@ webRoutes.post(
       {
         error: "deprecated",
         message:
-          "Custom device login removed. Upgrade the CLI (workboard upgrade) — login uses WorkOS device auth + JWT.",
+          "Custom device login removed. Upgrade the CLI (bagsy upgrade) — login uses WorkOS device auth + JWT.",
       },
       410,
     );
@@ -598,7 +598,7 @@ webRoutes.get("/device", async (c) => {
     code{background:var(--code-bg);padding:.1rem .35rem;border-radius:4px}</style></head><body>
     <h1>CLI login</h1>
     <p>The CLI uses <strong>WorkOS device authorization</strong> directly (AuthKit access JWT).</p>
-    <p>Run <code>workboard login</code> in your terminal and complete the WorkOS browser prompt shown there.</p>
+    <p>Run <code>bagsy login</code> in your terminal and complete the WorkOS browser prompt shown there.</p>
     <p>This custom <code>/device</code> approval page is no longer used.</p>
     <p><a href="/">Back to Bagsy</a></p>
     </body></html>`,
