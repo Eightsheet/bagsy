@@ -5,14 +5,14 @@ Agent coordination CLI for [Bagsy](https://github.com/Eightsheet/bagsy) — bags
 ## Install
 
 ```bash
-npm install -g bagsy
+npm install -g @bagsy/cli
 ```
 
 Upgrading from the old `workboard-cli` tarball install:
 
 ```bash
 npm uninstall -g workboard-cli
-npm install -g bagsy
+npm install -g @bagsy/cli
 ```
 
 Your login carries over (`~/.config/repo-org` is migrated to `~/.config/bagsy` on first run). The `workboard` command keeps working as a deprecated alias.

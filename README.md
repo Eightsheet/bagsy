@@ -23,10 +23,10 @@ The CLI talks to that URL by default. Override only if you run your own API: `BA
 ## Install CLI
 
 ```bash
-npm install -g bagsy
+npm install -g @bagsy/cli
 ```
 
-Upgrading from the old `workboard-cli` tarball install: `npm uninstall -g workboard-cli && npm install -g bagsy`. Your login carries over; `workboard` keeps working as a deprecated alias.
+Upgrading from the old `workboard-cli` tarball install: `npm uninstall -g workboard-cli && npm install -g @bagsy/cli`. Your login carries over; `workboard` keeps working as a deprecated alias.
 
 Then:
 
@@ -121,7 +121,7 @@ pnpm --filter @repo-org/api dev
 CLI against local API:
 
 ```bash
-pnpm --filter bagsy build
+pnpm --filter @bagsy/cli build
 BAGSY_API_URL=http://localhost:3000 node packages/cli/dist/bagsy.js login
 ```
 
@@ -153,7 +153,7 @@ Config: `~/.config/bagsy/config.json`
 
 ## Releases
 
-- Tag `vX.Y.Z` → GitHub Actions builds the CLI, attaches `bagsy-X.Y.Z.tgz` (plus a legacy-named copy for old auto-updaters) to the Release, and publishes to npm via trusted publishing.
+- Tag `vX.Y.Z` → GitHub Actions builds the CLI, attaches `bagsy-cli-X.Y.Z.tgz` (plus a legacy-named copy for old auto-updaters) to the Release, and publishes to npm via trusted publishing.
 - `main` is protected: PRs required, no force-push, no branch deletion.
 
 ## Security

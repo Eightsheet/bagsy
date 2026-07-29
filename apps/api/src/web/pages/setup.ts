@@ -236,7 +236,7 @@ export function setupPage(opts: {
       <ol class="steps">
         <li>
           <strong>Install the CLI</strong>
-          <code class="cmd">npm install -g bagsy</code>
+          <code class="cmd">npm install -g @bagsy/cli</code>
         </li>
         <li>
           <strong>Sign in on this machine</strong>

@@ -27,7 +27,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile=false
       - run: pnpm --filter @repo-org/shared build
-      - run: pnpm --filter bagsy build
+      - run: pnpm --filter @bagsy/cli build
 
       - name: Read version
         id: ver
@@ -51,20 +51,20 @@ jobs:
           npm pack
           # Old workboard-cli installs auto-update from an asset with the
           # legacy name — attach the same tarball under both names.
-          cp "bagsy-${VERSION}.tgz" "workboard-cli-${VERSION}.tgz"
+          cp "bagsy-cli-${VERSION}.tgz" "workboard-cli-${VERSION}.tgz"
 
       - name: Upload GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            packages/cli/bagsy-*.tgz
+            packages/cli/bagsy-cli-*.tgz
             packages/cli/workboard-cli-*.tgz
           generate_release_notes: true
           body: |
             ## Install
 
             ```bash
-            npm install -g bagsy
+            npm install -g @bagsy/cli
             ```
 
             ```bash
@@ -77,8 +77,8 @@ jobs:
         env:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          if npm view "bagsy@${VERSION}" version >/dev/null 2>&1; then
-            echo "bagsy@${VERSION} already on npm — skipping publish."
+          if npm view "@bagsy/cli@${VERSION}" version >/dev/null 2>&1; then
+            echo "@bagsy/cli@${VERSION} already on npm — skipping publish."
           else
             npm publish --access public
           fi

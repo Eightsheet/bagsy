@@ -25,7 +25,7 @@ export function landingPage(): string {
         <li>
           <strong>Install &amp; sign in</strong>
           <span class="muted">Authenticate your machine against this Bagsy instance.</span>
-          <code class="cmd">npm install -g bagsy</code>
+          <code class="cmd">npm install -g @bagsy/cli</code>
           <code class="cmd">bagsy login</code>
         </li>
         <li>
