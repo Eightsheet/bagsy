@@ -9,6 +9,8 @@ import {
   requireSession,
   revokeSession,
   setSessionCookie,
+  type AuthOrg,
+  type AuthUser,
 } from "../auth/middleware.js";
 import {
   createWorkOSOrganizationAsAdmin,
@@ -43,6 +45,11 @@ import {
   deleteOrgEverywhere,
   membershipRole,
 } from "../lib/deletion.js";
+import {
+  changeOrgMemberRole,
+  removeOrgMember,
+  revokeOrgInvitation,
+} from "../lib/members.js";
 import { appUrl, workosConfigured } from "../lib/env.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { workosSessionIdFromAccessToken } from "../lib/workos-jwt.js";
@@ -120,6 +127,7 @@ webRoutes.get("/v1/web/state", async (c) => {
       repos: [],
       members: [],
       pendingInvites: [],
+      canManage: false,
       defaultOrgName: "",
     });
   }
@@ -147,6 +155,8 @@ webRoutes.get("/v1/web/state", async (c) => {
     pendingInvites = await listPendingInvitations(orgRow?.workosOrgId);
   }
 
+  const canManage = members.some((m) => m.userId === user.id && m.role === "admin");
+
   return c.json({
     user,
     org,
@@ -154,6 +164,7 @@ webRoutes.get("/v1/web/state", async (c) => {
     repos,
     members,
     pendingInvites,
+    canManage,
     defaultOrgName: defaultOrgName(user.name, user.email),
   });
 });
@@ -495,6 +506,96 @@ webRoutes.post(
     return c.redirect("/");
   },
 );
+
+/** Admin-gated member/invite management, all scoped to the active team. */
+const memberManageLimit = rateLimit({
+  name: "member-manage",
+  windowMs: 60 * 1000,
+  max: 30,
+  key: (c) => c.get("sessionUser")?.id ?? "anon",
+});
+
+type AdminGate =
+  | { ok: false; error: string }
+  | { ok: true; user: AuthUser; org: AuthOrg };
+
+/** Active team + assert the caller is one of its admins. */
+async function requireActiveTeamAdmin(c: Context): Promise<AdminGate> {
+  const user = c.get("sessionUser")!;
+  const org = c.get("sessionOrg");
+  if (!org) {
+    return { ok: false, error: "Pick a team in the header first" };
+  }
+  const role = await membershipRole(org.id, user.id);
+  if (role !== "admin") {
+    return { ok: false, error: "Only team admins can manage members" };
+  }
+  return { ok: true, user, org };
+}
+
+webRoutes.post("/orgs/members/remove", requireSession, memberManageLimit, async (c) => {
+  const gate = await requireActiveTeamAdmin(c);
+  if (!gate.ok) return c.redirect(`/?err=${encodeURIComponent(gate.error)}`);
+
+  const body = await c.req.parseBody();
+  const targetUserId = String(body.user_id ?? "").trim();
+  if (!targetUserId) return c.redirect(`/?err=${encodeURIComponent("No member selected")}`);
+  if (targetUserId === gate.user.id) {
+    return c.redirect(
+      `/?err=${encodeURIComponent("Use “Leave team” to remove yourself")}`,
+    );
+  }
+
+  const result = await removeOrgMember({ orgId: gate.org.id, targetUserId });
+  if (!result.ok) return c.redirect(`/?err=${encodeURIComponent(result.error)}`);
+  return c.redirect(`/?ok=${encodeURIComponent("Member removed")}`);
+});
+
+webRoutes.post("/orgs/members/role", requireSession, memberManageLimit, async (c) => {
+  const gate = await requireActiveTeamAdmin(c);
+  if (!gate.ok) return c.redirect(`/?err=${encodeURIComponent(gate.error)}`);
+
+  const body = await c.req.parseBody();
+  const targetUserId = String(body.user_id ?? "").trim();
+  const role = String(body.role ?? "").trim();
+  if (role !== "admin" && role !== "member") {
+    return c.redirect(`/?err=${encodeURIComponent("Invalid role")}`);
+  }
+  if (!targetUserId) return c.redirect(`/?err=${encodeURIComponent("No member selected")}`);
+
+  const result = await changeOrgMemberRole({ orgId: gate.org.id, targetUserId, role });
+  if (!result.ok) return c.redirect(`/?err=${encodeURIComponent(result.error)}`);
+  return c.redirect(
+    `/?ok=${encodeURIComponent(role === "admin" ? "Promoted to admin" : "Changed to member")}`,
+  );
+});
+
+webRoutes.post("/orgs/invites/revoke", requireSession, memberManageLimit, async (c) => {
+  const gate = await requireActiveTeamAdmin(c);
+  if (!gate.ok) return c.redirect(`/?err=${encodeURIComponent(gate.error)}`);
+
+  const body = await c.req.parseBody();
+  const invitationId = String(body.invitation_id ?? "").trim();
+  if (!invitationId) return c.redirect(`/?err=${encodeURIComponent("No invite selected")}`);
+
+  const result = await revokeOrgInvitation({ orgId: gate.org.id, invitationId });
+  if (!result.ok) return c.redirect(`/?err=${encodeURIComponent(result.error)}`);
+  return c.redirect(`/?ok=${encodeURIComponent("Invite revoked")}`);
+});
+
+/** Leave a team yourself — any member, but not if you are its last admin. */
+webRoutes.post("/orgs/members/leave", requireSession, memberManageLimit, async (c) => {
+  const user = c.get("sessionUser")!;
+  const org = c.get("sessionOrg");
+  if (!org) return c.redirect(`/?err=${encodeURIComponent("Pick a team in the header first")}`);
+
+  const result = await removeOrgMember({ orgId: org.id, targetUserId: user.id });
+  if (!result.ok) return c.redirect(`/?err=${encodeURIComponent(result.error)}`);
+
+  const remaining = await listLocalOrgsForUser(user.id);
+  await rotateSession(c, user.id, remaining[0]?.id ?? null);
+  return c.redirect(`/?ok=${encodeURIComponent(`You left “${org.name}”`)}`);
+});
 
 async function switchOrg(c: Context, slug: string) {
   const user = c.get("sessionUser")!;
