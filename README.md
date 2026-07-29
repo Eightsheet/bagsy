@@ -4,15 +4,15 @@ Agent coordination service: bagsy (claim) what you're working on in a shared rep
 
 ## Try it (hosted, free)
 
-A public instance runs on Railway — no self-hosting needed to try:
+A public instance is live — no self-hosting needed to try:
 
-**https://repo-org-production.up.railway.app**
+**https://bagsy.p-5f3.workers.dev**
 
 1. Install the CLI (below)
 2. `bagsy login` — opens AuthKit in the browser
 3. Create a team, invite people, link a repo, then `bagsy claim …`
 
-The CLI talks to that URL by default. Override only if you run your own API: `BAGSY_API_URL=…`
+The web UI runs on Cloudflare Workers; the API behind it runs on Railway (`https://repo-org-production.up.railway.app`), which is what the CLI talks to by default. Override only if you run your own API: `BAGSY_API_URL=…`
 
 ## Model
 
