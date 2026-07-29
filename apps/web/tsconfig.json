@@ -8,7 +8,13 @@
     "declarationMap": false,
     "sourceMap": false,
     "lib": ["ES2022"],
-    "types": ["@cloudflare/workers-types"]
+    "types": ["@cloudflare/workers-types"],
+    // Matches the wrangler "alias": the Worker consumes @bagsy/shared as
+    // source, so neither bundling nor typechecking waits on the package being
+    // compiled first.
+    "paths": {
+      "@bagsy/shared": ["../../packages/shared/src/index.ts"]
+    }
   },
   "include": ["src/**/*"]
 }

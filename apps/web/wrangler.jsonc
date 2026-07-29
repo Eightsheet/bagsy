@@ -3,13 +3,13 @@
   "name": "bagsy",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-01",
-  // @bagsy/shared resolves through its "exports" to dist/, and dist is
-  // gitignored — so on a fresh clone (Workers Builds, a new checkout) the
-  // bundle cannot resolve it until it has been compiled. CI already does this
-  // explicitly before typechecking; the deploy has to do it too.
-  "build": {
-    "command": "pnpm --filter @bagsy/shared build",
-    "cwd": "../.."
+  // Bundle @bagsy/shared from source rather than through its "exports", which
+  // point at a gitignored dist/. esbuild compiles the TypeScript directly, so
+  // a deploy from a clean checkout needs no prior build of anything — there is
+  // no build-order dependency left to get wrong. tsconfig.json carries the
+  // matching "paths" so typechecking resolves the same file.
+  "alias": {
+    "@bagsy/shared": "../../packages/shared/src/index.ts"
   },
   // Production API on Railway; override locally via .dev.vars.
   "vars": {
