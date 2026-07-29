@@ -8,8 +8,8 @@ import {
 } from "@bagsy/shared";
 import { escapeHtml, layout, topbar, type ShellOrg, type ShellUser } from "../html";
 import { releaseActions, softHoldActions, startActions } from "../board/actions";
+import { claimIslands } from "../board/islands";
 import {
-  claimActor,
   claimOwner,
   duration,
   plural,
@@ -42,7 +42,7 @@ function statusLine(claim: BoardClaim, blockers: BoardClaim[], now: number): str
       return `Active. Heartbeat ${timeTag(claim.updatedAt, now)}, TTL lapses ${untilTag(claim.expiresAt, now)}.`;
     case "stale":
       return blockers.length > 0
-        ? `Soft hold. TTL missed ${untilTag(claim.expiresAt, now)}; frees itself in ${escapeHtml(duration(Math.max(0, claim.softHoldLeftMs ?? 0)))}, and ${blockers.length} live ${plural(blockers.length, "claim")} ${blockers.length === 1 ? "is" : "are"} waiting on it.`
+        ? `Soft hold. TTL missed ${timeTag(claim.expiresAt, now)}; frees itself in ${escapeHtml(duration(Math.max(0, claim.softHoldLeftMs ?? 0)))}, and ${blockers.length} live ${plural(blockers.length, "claim")} ${blockers.length === 1 ? "is" : "are"} waiting on it.`
         : `Soft hold. Nothing overlaps it, so it frees itself in ${escapeHtml(duration(Math.max(0, claim.softHoldLeftMs ?? 0)))} with no decision from anyone.`;
     case "planned":
       return `Queued ${timeTag(claim.startedAt, now)} by ${escapeHtml(claimOwner(claim))}. Nobody has started it.`;
@@ -144,10 +144,19 @@ export function claimPage(opts: {
                ${partners
                  .map((p) => {
                    const edge = edges.find((e) => e.a === p.id || e.b === p.id)!;
+                   const why = edge.reasons
+                     .map((r) =>
+                       r === "files"
+                         ? "shares files"
+                         : r === "roadmap_ref"
+                           ? "same roadmap ref"
+                           : "same title",
+                     )
+                     .join(", ");
                    return `<li>
                      <span>
                        <a href="/claims/${escapeHtml(p.id)}">${escapeHtml(p.title)}</a>
-                       <span class="muted" style="display:block;font-size:0.85rem">${escapeHtml(claimOwner(p))} · ${escapeHtml(p.repo)} · ${escapeHtml(edge.reasons.join(", ").replace("roadmap_ref", "roadmap ref"))}</span>
+                       <span class="muted" style="display:block;font-size:0.85rem">${escapeHtml(claimOwner(p))} · ${escapeHtml(p.repo)} · ${escapeHtml(why)}</span>
                      </span>
                      ${statusBadge(p)}
                    </li>`;
@@ -204,7 +213,7 @@ export function claimPage(opts: {
     </section>
   `;
 
-  return layout(claim.title, body);
+  return layout(claim.title, body, { islands: claimIslands() });
 }
 
 /** A 404 that says what is actually true, rather than a bare status code. */

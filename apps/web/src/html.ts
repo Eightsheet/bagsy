@@ -903,7 +903,13 @@ a.chip[aria-current="true"] { border: 1.5px solid var(--ink); color: var(--ink);
 export function layout(
   title: string,
   body: string,
-  opts?: { narrow?: boolean; wide?: boolean; skipTo?: { id: string; label: string } },
+  opts?: {
+    narrow?: boolean;
+    wide?: boolean;
+    skipTo?: { id: string; label: string };
+    /** Extra progressive-enhancement script. The page must be complete without it. */
+    islands?: string;
+  },
 ): string {
   const pageTitle = title === "Bagsy" ? "Bagsy" : `${title} · Bagsy`;
   const width = opts?.narrow ? " narrow" : opts?.wide ? " wide" : "";
@@ -989,6 +995,7 @@ export function layout(
     document.querySelectorAll("[data-nojs]").forEach(function (el) { el.remove(); });
   })();
   </script>
+  ${opts?.islands ?? ""}
 </body>
 </html>`;
 }

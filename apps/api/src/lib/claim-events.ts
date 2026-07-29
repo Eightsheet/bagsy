@@ -105,6 +105,17 @@ export async function listClaimEvents(claimId: string): Promise<ClaimEvent[]> {
 
 /**
  * Newest-last tail plus total count per claim, in one query for the whole board.
+ *
+ * KNOWN COST, deliberately left alone: this selects every event row for every
+ * claim and slices to RECENT_CLAIM_EVENTS in JavaScript, so a 200-claim board
+ * transfers up to 200 x MAX_CLAIM_EVENTS rows to keep 600. The fix is a
+ * `row_number() over (partition by claim_id order by created_at desc)` window
+ * off the existing `claim_events_claim_created` index.
+ *
+ * It is not done here because this function is also on the CLI's path
+ * (`listBoardClaims` backs `bagsy status`), and a rewrite that has never run
+ * against Postgres would put a working command at risk to speed up a page. Do
+ * it with a database in front of you.
  */
 export async function recentEventsByClaim(
   orgId: string,

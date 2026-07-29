@@ -6,7 +6,6 @@ import {
 } from "@bagsy/shared";
 import { escapeHtml, layout, topbar, type ShellOrg, type ShellUser } from "../html";
 import {
-  claimActor,
   claimOwner,
   duration,
   fileCount,
@@ -16,6 +15,7 @@ import {
   untilTag,
   withParams,
 } from "../board/format";
+import { boardIslands } from "../board/islands";
 import { pressure } from "../board/rank";
 
 /**
@@ -404,7 +404,7 @@ export function boardPage(opts: {
       }
     </div>
     ${footer}
-    <details class="quiet-details">
+    <details class="quiet-details" id="kbd-help">
       <summary>Keyboard</summary>
       <p class="muted"><code>/</code> search · <code>j</code> / <code>k</code> move between claims · <code>Enter</code> open · <code>Esc</code> leave search · <code>?</code> this list</p>
     </details>
@@ -413,5 +413,6 @@ export function boardPage(opts: {
   return layout("All claims", body, {
     wide: true,
     skipTo: { id: "agate", label: "Skip to the board" },
+    islands: boardIslands(),
   });
 }

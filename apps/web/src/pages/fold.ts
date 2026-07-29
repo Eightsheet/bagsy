@@ -17,8 +17,9 @@ import {
   timeTag,
   untilTag,
 } from "../board/format";
+import { foldIslands } from "../board/islands";
 import { FINDING_LABEL, rankFold, type Finding, type FoldResult } from "../board/rank";
-import { agateTable } from "./board";
+import { agateTable, parseBoardQuery, sortClaims } from "./board";
 
 /**
  * The fold: what needs a person, ranked, capped at five.
@@ -468,7 +469,11 @@ export function foldPage(opts: {
       ${
         small
           ? `<section class="panel"><h2>All claims</h2>${agateTable({
-              claims: board.claims,
+              claims: sortClaims(
+                board.claims,
+                parseBoardQuery(new URLSearchParams()),
+                new Set(board.collisions.flatMap((e) => [e.a, e.b])),
+              ),
               board,
               now,
               group: "repo",
@@ -480,5 +485,8 @@ export function foldPage(opts: {
     }
   `;
 
-  return layout("Board", body, { skipTo: { id: "decisions", label: "Skip to decisions" } });
+  return layout("Board", body, {
+    skipTo: { id: "decisions", label: "Skip to decisions" },
+    islands: foldIslands(),
+  });
 }
