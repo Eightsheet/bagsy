@@ -32,5 +32,5 @@ After ~2h without heartbeat a claim becomes **STALE** (still held ~24h). Others 
 - Soft-hold conflict → explain STALE / possible local WIP; use `--steal` only with user OK.
 - Not linked (status exit 2) → `bagsy link-repo` once.
 - Multi-team ambiguity → `--org <slug>` (non-interactive).
-- Not logged in → `bagsy login` (WorkOS device auth + JWT). Install: `npm install -g bagsy`
+- Not logged in → `bagsy login` (WorkOS device auth + JWT). Install: `npm install -g @bagsy/cli`
 - Wire skills: `bagsy init --all` (optional `--docs`). Override API: `BAGSY_API_URL`.

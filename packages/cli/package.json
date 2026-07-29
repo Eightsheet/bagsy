@@ -1,5 +1,5 @@
 {
-  "name": "bagsy",
+  "name": "@bagsy/cli",
   "version": "0.2.0",
   "description": "Bagsy — claim work on shared repos so agents and humans don't duplicate effort",
   "type": "module",

@@ -5,7 +5,7 @@
 Before meaningful coding in a shared repo that uses Bagsy:
 
 ```bash
-npm install -g bagsy
+npm install -g @bagsy/cli
 bagsy init --all      # skills only (Claude Code / Codex / Cursor)
 # optional: bagsy init --docs   # also append CLAUDE.md / AGENTS.md
 bagsy login

@@ -4,7 +4,7 @@ This project uses **Bagsy** so agents/humans do not duplicate work on the same f
 
 Before any meaningful implementation (editing code, starting a roadmap item, multi-file changes):
 
-1. Install the CLI: `npm install -g bagsy`
+1. Install the CLI: `npm install -g @bagsy/cli`
 2. `bagsy status` — if not logged in, `bagsy login` first
 3. If the repo is not linked (`status` exit 2): `bagsy link-repo`
 4. Claim before you start: `bagsy claim -t "short title" -f path/one -f path/two`
