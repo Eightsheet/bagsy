@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { ZodError } from "zod";
 import { apiRoutes } from "./routes/api.js";
+import { iconRoutes } from "./routes/icons.js";
 import { webRoutes } from "./routes/web.js";
 
 const app = new Hono();
@@ -17,6 +18,7 @@ app.use(
   }),
 );
 
+app.route("/", iconRoutes);
 app.route("/", webRoutes);
 app.route("/", apiRoutes);
 
