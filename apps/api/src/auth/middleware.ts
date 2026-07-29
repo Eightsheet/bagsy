@@ -33,6 +33,8 @@ declare module "hono" {
     auth: AuthContext;
     sessionUser: AuthUser | null;
     sessionOrg: AuthOrg | null;
+    /** WorkOS `sid` behind the current web session, if any. */
+    sessionWorkosId: string | null;
   }
 }
 
@@ -98,6 +100,7 @@ export async function loadSession(c: Context, next: Next) {
   if (!sessionId) {
     c.set("sessionUser", null);
     c.set("sessionOrg", null);
+    c.set("sessionWorkosId", null);
     await next();
     return;
   }
@@ -106,6 +109,7 @@ export async function loadSession(c: Context, next: Next) {
     .select({
       sessionId: sessions.id,
       expiresAt: sessions.expiresAt,
+      workosSessionId: sessions.workosSessionId,
       userId: users.id,
       email: users.email,
       name: users.name,
@@ -125,6 +129,7 @@ export async function loadSession(c: Context, next: Next) {
     deleteCookie(c, "wb_session");
     c.set("sessionUser", null);
     c.set("sessionOrg", null);
+    c.set("sessionWorkosId", null);
     await next();
     return;
   }
@@ -141,6 +146,7 @@ export async function loadSession(c: Context, next: Next) {
       ? { id: row.orgId, slug: row.orgSlug!, name: row.orgName! }
       : null,
   );
+  c.set("sessionWorkosId", row.workosSessionId);
   await next();
 }
 
@@ -152,11 +158,20 @@ export async function requireSession(c: Context, next: Next) {
   await next();
 }
 
-export async function createSession(userId: string, orgId: string | null): Promise<string> {
+export async function createSession(
+  userId: string,
+  orgId: string | null,
+  workosSessionId: string | null = null,
+): Promise<string> {
   const id = newId("sess");
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  await db.insert(sessions).values({ id, userId, orgId, expiresAt });
+  await db.insert(sessions).values({ id, userId, orgId, workosSessionId, expiresAt });
   return id;
+}
+
+/** Drop a session row so a logged-out cookie can never be replayed. */
+export async function revokeSession(sessionId: string) {
+  await db.delete(sessions).where(eq(sessions.id, sessionId));
 }
 
 export function setSessionCookie(c: Context, sessionId: string) {

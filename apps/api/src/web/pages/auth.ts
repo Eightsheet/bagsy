@@ -77,40 +77,6 @@ export function loginPage(opts: { workosUrl: string | null }): string {
   );
 }
 
-export function chooseOrgPage(opts: {
-  orgs: Array<{ id: string; name: string }>;
-  pendingToken: string;
-  state: string;
-}): string {
-  return layout(
-    "Choose team",
-    `
-    <section class="focus-card">
-      <header class="page-header">
-        <h1>Choose team</h1>
-        <p class="meta">You belong to more than one WorkOS organization</p>
-      </header>
-      <ul class="list" style="margin-top:8px">
-        ${opts.orgs
-          .map(
-            (o) => `
-          <li>
-            <form method="post" action="/auth/select-org" style="width:100%">
-              <input type="hidden" name="organization_id" value="${escapeHtml(o.id)}" />
-              <input type="hidden" name="pending_token" value="${escapeHtml(opts.pendingToken)}" />
-              <input type="hidden" name="state" value="${escapeHtml(opts.state)}" />
-              <button type="submit" style="width:100%">${escapeHtml(o.name)}</button>
-            </form>
-          </li>`,
-          )
-          .join("")}
-      </ul>
-    </section>
-  `,
-    { narrow: true },
-  );
-}
-
 export function noOrgPage(opts?: { defaultOrgName?: string }): string {
   const defaultName = opts?.defaultOrgName ?? "My team's team";
   return layout(

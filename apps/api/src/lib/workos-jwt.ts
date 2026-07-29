@@ -11,6 +11,21 @@ export type WorkOsAccessClaims = JWTPayload & {
   permissions?: string[];
 };
 
+/**
+ * Read the AuthKit session id (`sid`) out of an access token.
+ * Unverified on purpose: the token comes straight from the WorkOS token
+ * endpoint over TLS, and the value is only used to build a logout URL.
+ */
+export function workosSessionIdFromAccessToken(token: string | undefined | null): string | null {
+  if (!token) return null;
+  try {
+    const { sid } = decodeJwt(token) as WorkOsAccessClaims;
+    return typeof sid === "string" && sid ? sid : null;
+  } catch {
+    return null;
+  }
+}
+
 let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 let jwksClientId: string | null = null;
 

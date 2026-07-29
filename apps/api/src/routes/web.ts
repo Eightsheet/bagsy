@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { deleteCookie } from "hono/cookie";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { and, eq } from "drizzle-orm";
 import { normalizeRepo } from "@repo-org/shared";
 import {
   createSession,
   loadSession,
   requireSession,
+  revokeSession,
   setSessionCookie,
 } from "../auth/middleware.js";
 import {
@@ -24,6 +25,7 @@ import {
   authenticateWithOrganizationSelection,
   authenticateWithRefreshToken,
   getAuthKitUrl,
+  getLogoutUrl,
   workosClientId,
 } from "../auth/workos.js";
 import { upsertLocalUserFromWorkOs } from "../auth/users.js";
@@ -43,12 +45,8 @@ import {
 } from "../lib/deletion.js";
 import { appUrl, workosConfigured } from "../lib/env.js";
 import { rateLimit } from "../lib/rate-limit.js";
-import {
-  chooseOrgPage,
-  landingPage,
-  loginPage,
-  noOrgPage,
-} from "../web/pages/auth.js";
+import { workosSessionIdFromAccessToken } from "../lib/workos-jwt.js";
+import { landingPage, loginPage, noOrgPage } from "../web/pages/auth.js";
 import { privacyPage } from "../web/pages/legal.js";
 import { setupPage } from "../web/pages/setup.js";
 
@@ -79,6 +77,23 @@ function isOrgSelectionError(err: unknown): err is {
     e.error === "organization_selection_required" ||
     e.rawData?.code === "organization_selection_required"
   );
+}
+
+/**
+ * The team you last used, as a WorkOS org id. Teams are switched inside the
+ * dashboard, so login resolves the org silently instead of asking for it.
+ */
+const LAST_ORG_COOKIE = "wb_last_org";
+
+function rememberLastOrg(c: Context, workosOrgId: string | null | undefined) {
+  if (!workosOrgId) return;
+  setCookie(c, LAST_ORG_COOKIE, workosOrgId, {
+    httpOnly: true,
+    sameSite: "Lax",
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 365 * 24 * 60 * 60,
+  });
 }
 
 webRoutes.get("/health", (c) => c.json({ ok: true }));
@@ -150,25 +165,10 @@ webRoutes.get("/auth/callback", async (c) => {
     return c.text("Missing code or WorkOS config", 400);
   }
 
-  let authResult: Awaited<ReturnType<typeof authenticateWithCode>>;
   try {
-    authResult = await authenticateWithCode(code);
+    const authResult = await authenticateResolvingOrg(c, code);
+    return finishAuth(c, authResult, state);
   } catch (err) {
-    if (isOrgSelectionError(err)) {
-      const token =
-        (err as { rawData?: { pending_authentication_token?: string } }).rawData
-          ?.pending_authentication_token ?? "";
-      const orgs =
-        (err as { rawData?: { organizations?: Array<{ id: string; name: string }> } }).rawData
-          ?.organizations ?? [];
-      return c.html(
-        chooseOrgPage({
-          orgs,
-          pendingToken: token,
-          state,
-        }),
-      );
-    }
     console.error(err);
     return c.json(
       {
@@ -178,28 +178,29 @@ webRoutes.get("/auth/callback", async (c) => {
       500,
     );
   }
-
-  return finishAuth(c, authResult, state);
 });
 
-webRoutes.post("/auth/select-org", async (c) => {
-  const body = await c.req.parseBody();
-  const organizationId = String(body.organization_id ?? "");
-  const pendingToken = String(body.pending_token ?? "");
-  const state = String(body.state ?? "");
-  if (!organizationId || !pendingToken) return c.text("Missing fields", 400);
-
+/**
+ * AuthKit asks which organization to sign into when the user belongs to
+ * several. Teams are switched inside the dashboard, so answer it here — last
+ * used, else the first — instead of interrupting the login with a picker.
+ */
+async function authenticateResolvingOrg(c: Context, code: string) {
   try {
-    const authResult = await authenticateWithOrganizationSelection({
-      organizationId,
+    return await authenticateWithCode(code);
+  } catch (err) {
+    if (!isOrgSelectionError(err)) throw err;
+    const pendingToken = err.rawData?.pending_authentication_token;
+    const orgs = err.rawData?.organizations ?? [];
+    const lastOrg = getCookie(c, LAST_ORG_COOKIE);
+    const pick = orgs.find((o) => o.id === lastOrg) ?? orgs[0];
+    if (!pendingToken || !pick) throw err;
+    return authenticateWithOrganizationSelection({
+      organizationId: pick.id,
       pendingAuthenticationToken: pendingToken,
     });
-    return finishAuth(c, authResult, state);
-  } catch (err) {
-    console.error(err);
-    return c.text(err instanceof Error ? err.message : "Org selection failed", 400);
   }
-});
+}
 
 async function finishAuth(
   c: Context,
@@ -213,8 +214,13 @@ async function finishAuth(
     (authResult as { organizationId?: string }).organizationId ?? null;
   const selected = pickDefaultOrg(synced, preferred);
 
-  const sessionId = await createSession(userRow.id, selected?.id ?? null);
+  const sessionId = await createSession(
+    userRow.id,
+    selected?.id ?? null,
+    workosSessionIdFromAccessToken(authResult.accessToken),
+  );
   setSessionCookie(c, sessionId);
+  rememberLastOrg(c, selected?.workosOrgId ?? preferred);
 
   if (state.startsWith("next:")) {
     const next = state.slice("next:".length);
@@ -229,10 +235,32 @@ async function finishAuth(
   return c.redirect("/");
 }
 
+/**
+ * Clear our session *and* the AuthKit one. Dropping only the cookie leaves the
+ * WorkOS session alive, so the next sign-in silently returns the same account
+ * and signing in as someone else becomes impossible.
+ */
 webRoutes.post("/logout", async (c) => {
+  const sessionId = getCookie(c, "wb_session");
+  const workosSessionId = c.get("sessionWorkosId");
+  if (sessionId) await revokeSession(sessionId);
   deleteCookie(c, "wb_session");
-  return c.redirect("/");
+  deleteCookie(c, LAST_ORG_COOKIE);
+
+  const logoutUrl = workosSessionId ? getLogoutUrl(workosSessionId, appUrl()) : null;
+  return c.redirect(logoutUrl ?? "/");
 });
+
+/**
+ * Re-issue the web session against another team. Carries the AuthKit session id
+ * over so logout can still end it, and drops the row it replaces.
+ */
+async function rotateSession(c: Context, userId: string, orgId: string | null) {
+  const previous = getCookie(c, "wb_session");
+  const sessionId = await createSession(userId, orgId, c.get("sessionWorkosId"));
+  if (previous) await revokeSession(previous);
+  setSessionCookie(c, sessionId);
+}
 
 webRoutes.post("/orgs/sync", requireSession, async (c) => {
   const user = c.get("sessionUser")!;
@@ -248,8 +276,7 @@ webRoutes.post("/orgs/sync", requireSession, async (c) => {
     ? synced.find((o) => o.id === current.id)!
     : pickDefaultOrg(synced);
 
-  const sessionId = await createSession(user.id, selected?.id ?? null);
-  setSessionCookie(c, sessionId);
+  await rotateSession(c, user.id, selected?.id ?? null);
   return c.redirect("/");
 });
 
@@ -289,8 +316,7 @@ webRoutes.post(
       });
     }
 
-    const sessionId = await createSession(user.id, created.id);
-    setSessionCookie(c, sessionId);
+    await rotateSession(c, user.id, created.id);
     const msg = inviteEmail
       ? `Created “${created.name}” and invited ${inviteEmail}`
       : `Created “${created.name}”`;
@@ -348,8 +374,7 @@ webRoutes.post(
       });
       workosOrgId = created.workosOrgId;
       orgName = created.name;
-      const sessionId = await createSession(user.id, created.id);
-      setSessionCookie(c, sessionId);
+      await rotateSession(c, user.id, created.id);
     } else {
       const orgRow = (
         await db.select().from(organizations).where(eq(organizations.id, active.id)).limit(1)
@@ -417,8 +442,7 @@ webRoutes.post(
 
     const remaining = await listLocalOrgsForUser(user.id);
     const next = remaining[0] ?? null;
-    const sessionId = await createSession(user.id, next?.id ?? null);
-    setSessionCookie(c, sessionId);
+    await rotateSession(c, user.id, next?.id ?? null);
     return c.redirect(
       `/?ok=${encodeURIComponent(`Deleted team “${org.name}” — board, claims, and linked repos are gone`)}`,
     );
@@ -450,7 +474,9 @@ webRoutes.post(
       return c.redirect(`/?err=${encodeURIComponent(result.error)}`);
     }
 
+    // The WorkOS user is gone, so its AuthKit session is too — just clear ours.
     deleteCookie(c, "wb_session");
+    deleteCookie(c, LAST_ORG_COOKIE);
     return c.redirect("/");
   },
 );
@@ -465,8 +491,8 @@ async function switchOrg(c: Context, slug: string) {
     .where(and(eq(memberships.userId, user.id), eq(memberships.orgId, org.id)))
     .limit(1);
   if (!memberRows[0]) return c.text("Forbidden", 403);
-  const sessionId = await createSession(user.id, org.id);
-  setSessionCookie(c, sessionId);
+  await rotateSession(c, user.id, org.id);
+  rememberLastOrg(c, org.workosOrgId);
   return c.redirect("/");
 }
 
