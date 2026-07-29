@@ -699,6 +699,20 @@ export function layout(
         }
       });
     });
+    // The per-row Manage menus are native <details>, which only close via their
+    // own summary; make them behave like menus: click elsewhere or Escape closes.
+    function closeManageMenus(except) {
+      document.querySelectorAll("details.row-manage[open]").forEach(function (d) {
+        if (d !== except) d.removeAttribute("open");
+      });
+    }
+    document.addEventListener("click", function (e) {
+      var inside = e.target instanceof Element ? e.target.closest("details.row-manage") : null;
+      closeManageMenus(inside);
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeManageMenus(null);
+    });
   })();
   </script>
 </body>
