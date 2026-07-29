@@ -67,7 +67,7 @@ export function setupPage(opts: {
                              <button type="submit" class="link-btn">${isAdmin ? "Make member" : "Make admin"}</button>
                            </form>
                            <form method="post" action="/orgs/members/remove" style="display:inline"
-                                 onsubmit="return confirm('Remove ${escapeHtml(label).replace(/'/g, "\\'")} from this team?')">
+                                 onsubmit="return confirm('Remove this member from the team?')">
                              <input type="hidden" name="user_id" value="${escapeHtml(m.userId)}" />
                              <button type="submit" class="link-btn danger">Remove</button>
                            </form>
@@ -102,7 +102,7 @@ export function setupPage(opts: {
                     ${
                       canManage
                         ? `<form method="post" action="/orgs/invites/revoke" style="display:inline"
-                                 onsubmit="return confirm('Revoke the invite for ${escapeHtml(inv.email).replace(/'/g, "\\'")}?')">
+                                 onsubmit="return confirm('Revoke this pending invite?')">
                              <input type="hidden" name="invitation_id" value="${escapeHtml(inv.id)}" />
                              <button type="submit" class="link-btn danger">Revoke</button>
                            </form>`
@@ -314,7 +314,7 @@ export function setupPage(opts: {
         <summary>Leave team “${escapeHtml(org.name)}”</summary>
         <p class="muted" style="margin:10px 0 6px">Removes you from this team’s board. You keep your account and other teams. If you are the team’s only admin, promote someone else first.</p>
         <form method="post" action="/orgs/members/leave" class="stack" style="margin-top:8px"
-              onsubmit="return confirm('Leave “${escapeHtml(org.name).replace(/'/g, "\\'")}”?')">
+              onsubmit="return confirm('Leave this team?')">
           <div class="row">
             <button type="submit" class="ghost">Leave this team</button>
           </div>
