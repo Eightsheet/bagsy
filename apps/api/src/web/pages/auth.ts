@@ -44,33 +44,20 @@ export function landingPage(): string {
   );
 }
 
-export function loginPage(opts: { workosUrl: string | null }): string {
-  if (!opts.workosUrl) {
-    return layout(
-      "Sign in",
-      `
-      <section class="focus-card">
-        <header class="page-header">
-          <h1>Sign in unavailable</h1>
-          <p class="meta">WorkOS AuthKit</p>
-        </header>
-        <p class="lede">Set <code>WORKOS_API_KEY</code> and <code>WORKOS_CLIENT_ID</code>.</p>
-      </section>
-    `,
-      { narrow: true },
-    );
-  }
-
+/**
+ * Shown only when WorkOS is not configured — `/login` redirects straight to
+ * AuthKit when it is, so there is no interstitial for the normal flow.
+ */
+export function loginPage(): string {
   return layout(
     "Sign in",
     `
     <section class="focus-card">
       <header class="page-header">
-        <h1>Sign in</h1>
-        <p class="meta">Bagsy · WorkOS AuthKit</p>
+        <h1>Sign in unavailable</h1>
+        <p class="meta">WorkOS AuthKit</p>
       </header>
-      <p class="lede">Continue with WorkOS. Your teams sync automatically.</p>
-      <p style="margin-top:16px"><a class="btn" href="${escapeHtml(opts.workosUrl)}">Continue with WorkOS</a></p>
+      <p class="lede">Set <code>WORKOS_API_KEY</code> and <code>WORKOS_CLIENT_ID</code>.</p>
     </section>
   `,
     { narrow: true },
