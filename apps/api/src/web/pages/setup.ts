@@ -209,7 +209,6 @@ export function setupPage(opts: {
                   (r) => `
                 <li>
                   <code>${escapeHtml(r.repo)}</code>
-                  <span class="badge${r.verifiedAt ? " ok" : ""}">${r.verifiedAt ? "Verified" : "Unverified"}</span>
                 </li>`,
                 )
                 .join("")}
