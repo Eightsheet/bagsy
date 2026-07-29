@@ -38,6 +38,7 @@ import {
   organizations,
   users,
 } from "../db/schema.js";
+import { loadOrgBoard } from "../lib/board.js";
 import { getCliUpdateInfo } from "../lib/cli-update.js";
 import { newId } from "../lib/crypto.js";
 import {
@@ -170,6 +171,20 @@ webRoutes.get("/v1/web/state", async (c) => {
     selfRole,
     defaultOrgName: defaultOrgName(user.name, user.email),
   });
+});
+
+/**
+ * The whole team board in one response: every live claim across every linked
+ * repo, the planned queue, and who collides with whom. Rendered by @bagsy/web.
+ */
+webRoutes.get("/v1/web/board", async (c) => {
+  const user = c.get("sessionUser");
+  const org = c.get("sessionOrg");
+  if (!user) return c.json({ error: "unauthenticated" }, 401);
+  if (!org) return c.json({ error: "no_organization" }, 403);
+
+  const board = await loadOrgBoard(org.id);
+  return c.json({ user, org, ...board });
 });
 
 webRoutes.get("/login", (c) => {
