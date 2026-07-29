@@ -123,6 +123,8 @@ export const sessions = pgTable("sessions", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   orgId: text("org_id").references(() => organizations.id),
+  /** WorkOS AuthKit session id (`sid` claim) — needed to end the AuthKit session on logout. */
+  workosSessionId: text("workos_session_id"),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

@@ -15,6 +15,13 @@
       "when": 1785201022549,
       "tag": "0001_light_phil_sheldon",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785326310248,
+      "tag": "0002_rich_elektra",
+      "breakpoints": true
     }
   ]
 }

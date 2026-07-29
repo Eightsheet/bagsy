@@ -71,6 +71,21 @@ export async function authenticateWithRefreshToken(refreshToken: string, organiz
   });
 }
 
+/**
+ * URL that ends the AuthKit session itself, not just our cookie.
+ * Without this, the next /login is a silent SSO re-auth as the same user.
+ * `returnTo` must be allow-listed in the WorkOS dashboard.
+ */
+export function getLogoutUrl(sessionId: string, returnTo?: string): string | null {
+  const workos = getWorkOS();
+  if (!workos) return null;
+  try {
+    return workos.userManagement.getLogoutUrl({ sessionId, returnTo });
+  } catch {
+    return null;
+  }
+}
+
 export function workosClientId(): string | undefined {
   return optionalEnv("WORKOS_CLIENT_ID");
 }
