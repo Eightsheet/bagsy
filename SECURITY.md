@@ -47,4 +47,4 @@ API auth validates WorkOS access JWTs: JWKS signature, `exp`, allowlisted `iss`,
 - Keep `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, `DATABASE_URL` only in Railway (or equivalent)
 - Prefer leaving `SKIP_GITHUB_VERIFY` unset once GitHub verify is wired
 - Set `WORKBOARD_CLI_UPDATE_CHANNEL=dev` only if you want CLIs to pick up releases immediately
-- After auth migrations, tell users to `workboard upgrade` then `workboard login`
+- After auth migrations, tell users to `bagsy upgrade` then `bagsy login`

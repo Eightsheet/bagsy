@@ -190,7 +190,7 @@ export function setupPage(opts: {
         </li>
         <li>
           <strong>CLI follows git remote</strong>
-          <span><code>workboard status</code> / <code>claim</code> pick the team that has this remote linked. If it’s linked in more than one of your teams, the CLI asks which board.</span>
+          <span><code>bagsy status</code> / <code>claim</code> pick the team that has this remote linked. If it’s linked in more than one of your teams, the CLI asks which board.</span>
         </li>
       </ol>
     </section>
@@ -214,7 +214,7 @@ export function setupPage(opts: {
                 )
                 .join("")}
             </ul>`
-          : `<p class="empty">No repos yet. Link one below, or run <code>workboard link-repo</code> from a clone.</p>`
+          : `<p class="empty">No repos yet. Link one below, or run <code>bagsy link-repo</code> from a clone.</p>`
       }
       <form method="post" action="/repos" class="stack" style="margin-top:12px">
         <label>
@@ -236,20 +236,20 @@ export function setupPage(opts: {
       <ol class="steps">
         <li>
           <strong>Install the CLI</strong>
-          <code class="cmd">npm install -g https://github.com/Eightsheet/bagsy/releases/download/v0.1.10/workboard-cli-0.1.10.tgz</code>
+          <code class="cmd">npm install -g bagsy</code>
         </li>
         <li>
           <strong>Sign in on this machine</strong>
-          <code class="cmd">workboard login</code>
+          <code class="cmd">bagsy login</code>
         </li>
         <li>
           <strong>Link the current repo to a team</strong>
-          <code class="cmd">workboard link-repo</code>
+          <code class="cmd">bagsy link-repo</code>
           <span class="muted" style="display:block;margin-top:6px">Once per team board. If you have several teams, the CLI asks which one.</span>
         </li>
         <li>
           <strong>Claim work</strong>
-          <code class="cmd">workboard claim -t "Title" -f path/file.ts</code>
+          <code class="cmd">bagsy claim -t "Title" -f path/file.ts</code>
           <span class="muted" style="display:block;margin-top:6px">Uses the team that already has this remote linked.</span>
         </li>
       </ol>
