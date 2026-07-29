@@ -11,6 +11,9 @@ bagsy init --all      # skills only (Claude Code / Codex / Cursor)
 bagsy login
 bagsy status
 bagsy claim -t "Short title" -f path/one.ts
+bagsy heartbeat --note "what you just finished"   # appends to the claim timeline, syncs touched files
+bagsy log                                          # full history of the current claim
+bagsy release current --result <PR-URL-or-SHA>
 ```
 
 Or paste [templates/CLAUDE.bagsy.md](./templates/CLAUDE.bagsy.md) / [templates/AGENTS.bagsy.md](./templates/AGENTS.bagsy.md).

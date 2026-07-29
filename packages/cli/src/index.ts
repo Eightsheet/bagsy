@@ -3,7 +3,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { parseGitRemoteUrl } from "@bagsy/shared";
+import { MAX_SYNC_FILES, parseGitRemoteUrl } from "@bagsy/shared";
 import {
   CLI_VERSION,
   fetchCliUpdate,
@@ -69,7 +69,8 @@ Usage:
   bagsy claim -t TITLE [-f FILE ...] [--roadmap REF] [--branch B] [--strict] [--steal] [--note NOTE] [--org slug]
   bagsy plan -t TITLE [-f FILE ...] [--roadmap REF] [--note NOTE]   # queue intent — no TTL, never blocks
   bagsy start CLAIM_ID [--steal]   # activate a planned claim (yours or a teammate's)
-  bagsy heartbeat [--note NOTE] [--claim ID]
+  bagsy heartbeat [--note NOTE] [--claim ID] [--no-sync-files]
+  bagsy log [claim-id|current] [--org slug]   # full timeline of a claim
   bagsy release [claim-id|current] [--result PR_URL_OR_SHA] [--org slug]
   bagsy link-repo [owner/name] [--org slug]
   bagsy init               # interactive: Claude Code / Codex / Cursor (skills only)
@@ -201,6 +202,56 @@ function detectRepo(explicit?: string): string {
 
 function detectBranch(): string | null {
   return git("git rev-parse --abbrev-ref HEAD 2>/dev/null");
+}
+
+/**
+ * What this working tree has actually touched: uncommitted changes, untracked
+ * files, and anything already committed on this branch since it forked off the
+ * default branch. A file list declared before the work started is always a
+ * guess — this is the real scope.
+ */
+function changedFiles(): string[] {
+  const out = new Set<string>();
+  const collect = (raw: string | null) => {
+    if (!raw) return;
+    for (const line of raw.split("\n")) {
+      const path = line.trim();
+      if (path) out.add(path);
+    }
+  };
+
+  collect(git("git diff --name-only HEAD 2>/dev/null"));
+  collect(git("git ls-files --others --exclude-standard 2>/dev/null"));
+
+  const base =
+    git("git merge-base HEAD origin/HEAD 2>/dev/null") ??
+    git("git merge-base HEAD origin/main 2>/dev/null") ??
+    git("git merge-base HEAD origin/master 2>/dev/null");
+  // Only ever interpolate a resolved object id into the shell.
+  if (base && /^[0-9a-f]{7,40}$/.test(base)) {
+    collect(git(`git diff --name-only ${base} HEAD 2>/dev/null`));
+  }
+
+  return [...out];
+}
+
+function formatEventLine(event: {
+  kind: string;
+  message: string | null;
+  actorName: string | null;
+  createdAt: string;
+}): string {
+  const when = new Date(event.createdAt);
+  const stamp = Number.isNaN(when.getTime())
+    ? event.createdAt
+    : when.toLocaleString(undefined, {
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+  const who = event.actorName ? ` (${event.actorName})` : "";
+  return `${stamp}  ${event.kind}${who}: ${event.message ?? ""}`.trimEnd();
 }
 
 function argValue(args: string[], flag: string): string | undefined {
@@ -420,6 +471,20 @@ async function login(args: string[]) {
   console.log("Tip: day-to-day, the CLI picks your team from git remote.");
 }
 
+/** Tail of the claim timeline — bounded, so a busy board stays scannable. */
+function printTimeline(claim: any) {
+  const events = (claim.recentEvents ?? []) as any[];
+  if (!events.length) return;
+  const total = claim.eventCount ?? events.length;
+  console.log("progress:");
+  for (const event of events) {
+    console.log(`  · ${formatEventLine(event)}`);
+  }
+  if (total > events.length) {
+    console.log(`  … ${total - events.length} earlier · bagsy log ${claim.id}`);
+  }
+}
+
 async function status(args: string[]) {
   const cfg = loadConfig();
   const repo = detectRepo(argValue(args, "--repo"));
@@ -457,6 +522,7 @@ async function status(args: string[]) {
     if (claim.roadmapRef) console.log(`roadmap: ${claim.roadmapRef}`);
     if (claim.files?.length) console.log(`files: ${claim.files.join(", ")}`);
     if (claim.note) console.log(`note: ${claim.note}`);
+    printTimeline(claim);
     console.log(
       `expires: ${claim.expiresAt}${claim.status === "stale" ? " (soft hold ~24h after)" : ""}`,
     );
@@ -580,12 +646,59 @@ async function heartbeat(args: string[]) {
   const id = argValue(args, "--claim") ?? cfg.currentClaimId;
   if (!id) die("No claim id. Pass --claim ID or claim first.");
   const note = argValue(args, "--note");
+  const files = hasFlag(args, "--no-sync-files") ? [] : changedFiles();
+
   const res = await api(cfg, `/v1/claims/${id}/heartbeat`, {
     method: "POST",
-    body: JSON.stringify({ note: note ?? undefined }),
+    body: JSON.stringify({
+      note: note ?? undefined,
+      files: files.length ? files : undefined,
+    }),
   });
   if (res.status !== 200) die(`heartbeat failed (${res.status}): ${JSON.stringify(res.json)}`);
   console.log(`Heartbeat ok · expires ${res.json.claim.expiresAt}`);
+
+  if (res.json.syncSkipped === "too_many_files") {
+    console.log(
+      `Skipped file sync — working tree touches more than ${MAX_SYNC_FILES} files. Claim scope left as declared.`,
+    );
+  } else if (res.json.addedFiles?.length) {
+    console.log(`Claim now also covers: ${res.json.addedFiles.join(", ")}`);
+  }
+  if (res.json.overlaps?.length) {
+    console.error("Warning: files you grew into overlap existing claims:");
+    console.error(JSON.stringify(res.json.overlaps, null, 2));
+  }
+}
+
+async function log(args: string[]) {
+  const cfg = loadConfig();
+  const positional = args.filter((a, i) => {
+    if (a.startsWith("-")) return false;
+    const prev = args[i - 1];
+    return prev !== "--org" && prev !== "--claim";
+  });
+  const target = positional[0] && positional[0] !== "current" ? positional[0] : cfg.currentClaimId;
+  if (!target) {
+    die("No claim id. Pass one (see bagsy status) or claim first: bagsy log CLAIM_ID");
+  }
+
+  const res = await api(cfg, `/v1/claims/${target}/events`, {}, argValue(args, "--org"));
+  if (res.status !== 200) die(`log failed (${res.status}): ${JSON.stringify(res.json)}`);
+
+  const { claim, events } = res.json;
+  console.log(`# ${claim.id} [${String(claim.status).toUpperCase()}]`);
+  console.log(claim.title);
+  if (claim.files?.length) console.log(`files: ${claim.files.join(", ")}`);
+  if (claim.resolvedRef) console.log(`result: ${claim.resolvedRef}`);
+  console.log("");
+  if (!events.length) {
+    console.log("No timeline entries yet.");
+    return;
+  }
+  for (const event of events) {
+    console.log(formatEventLine(event));
+  }
 }
 
 async function release(args: string[]) {
@@ -891,6 +1004,9 @@ try {
       break;
     case "heartbeat":
       await heartbeat(rest);
+      break;
+    case "log":
+      await log(rest);
       break;
     case "release":
       await release(rest);

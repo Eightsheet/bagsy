@@ -22,6 +22,13 @@
       "when": 1785326310248,
       "tag": "0002_rich_elektra",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785326753903,
+      "tag": "0003_plain_mephistopheles",
+      "breakpoints": true
     }
   ]
 }

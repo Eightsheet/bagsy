@@ -1,15 +1,18 @@
 import { and, eq, inArray, lt, or } from "drizzle-orm";
 import {
   DEFAULT_TTL_SECONDS,
+  MAX_SYNC_FILES,
   SOFT_HOLD_SECONDS,
   findOverlaps,
   normalizeFilePath,
   normalizeRepo,
+  type ClaimEvent,
   type ClaimRecord,
   type OverlapInfo,
 } from "@bagsy/shared";
 import { db } from "../db/client.js";
 import { claims, linkedRepos, organizations, users } from "../db/schema.js";
+import { recentEventsByClaim, recordClaimEventSafe } from "../lib/claim-events.js";
 import { newId } from "../lib/crypto.js";
 
 /**
@@ -20,7 +23,7 @@ export async function refreshClaimLifecycle(orgId: string, repo: string) {
   const now = new Date();
   const softHoldCutoff = new Date(now.getTime() - SOFT_HOLD_SECONDS * 1000);
 
-  await db
+  const wentStale = await db
     .update(claims)
     .set({ status: "stale", updatedAt: now })
     .where(
@@ -30,7 +33,17 @@ export async function refreshClaimLifecycle(orgId: string, repo: string) {
         eq(claims.status, "active"),
         lt(claims.expiresAt, now),
       ),
-    );
+    )
+    .returning({ id: claims.id });
+
+  for (const row of wentStale) {
+    await recordClaimEventSafe({
+      claimId: row.id,
+      orgId,
+      kind: "stale",
+      message: "No heartbeat within TTL — soft hold, may still have local WIP",
+    });
+  }
 
   await db
     .update(claims)
@@ -54,8 +67,11 @@ function toClaimRecord(
   row: typeof claims.$inferSelect,
   orgSlug: string,
   user: { email: string | null; name: string | null },
+  timeline?: { events: ClaimEvent[]; count: number },
 ): ClaimRecord {
   return {
+    recentEvents: timeline?.events ?? [],
+    eventCount: timeline?.count ?? 0,
     id: row.id,
     orgId: row.orgId,
     orgSlug,
@@ -109,7 +125,19 @@ export async function listBoardClaims(orgId: string, repo: string): Promise<Clai
       ),
     );
 
-  return rows.map((r) => toClaimRecord(r.claim, orgSlug, { email: r.email, name: r.name }));
+  const timelines = await recentEventsByClaim(
+    orgId,
+    rows.map((r) => r.claim.id),
+  );
+
+  return rows.map((r) =>
+    toClaimRecord(
+      r.claim,
+      orgSlug,
+      { email: r.email, name: r.name },
+      timelines.get(r.claim.id),
+    ),
+  );
 }
 
 export async function listActiveClaims(orgId: string, repo: string): Promise<ClaimRecord[]> {
@@ -129,13 +157,33 @@ export async function requireLinkedRepo(orgId: string, repo: string) {
   return { ok: true as const, repo: normalized, link: rows[0] };
 }
 
-async function forceExpireClaims(ids: string[]) {
+async function forceExpireClaims(
+  ids: string[],
+  takeover?: { orgId: string; userId: string; actorName: string | null },
+) {
   if (ids.length === 0) return;
   const now = new Date();
   await db
     .update(claims)
     .set({ status: "expired", updatedAt: now, releasedAt: now })
     .where(inArray(claims.id, ids));
+
+  if (!takeover) return;
+  // The stolen claim's own timeline is where its owner finds out what happened.
+  for (const id of ids) {
+    await recordClaimEventSafe({
+      claimId: id,
+      orgId: takeover.orgId,
+      userId: takeover.userId,
+      actorName: takeover.actorName,
+      kind: "stolen",
+      message: `Soft hold taken over by ${takeover.actorName ?? "a teammate"}`,
+    });
+  }
+}
+
+function actorLabel(user: { name: string | null; email: string | null }): string | null {
+  return user.name ?? user.email ?? null;
 }
 
 export async function createClaim(input: {
@@ -203,6 +251,17 @@ export async function createClaim(input: {
         updatedAt: now,
       })
       .returning();
+
+    await recordClaimEventSafe({
+      claimId: row!.id,
+      orgId: input.orgId,
+      userId: input.userId,
+      actorName: actorLabel({ name: input.userName, email: input.userEmail }),
+      kind: "planned",
+      message: `Queued: ${input.title.trim()}`,
+      meta: files.length ? { files } : null,
+    });
+
     return {
       claim: toClaimRecord(row!, input.orgSlug, {
         email: input.userEmail,
@@ -244,7 +303,11 @@ export async function createClaim(input: {
   }
   const uniqueSteal = [...new Set(stealIds)];
   if (uniqueSteal.length > 0) {
-    await forceExpireClaims(uniqueSteal);
+    await forceExpireClaims(uniqueSteal, {
+      orgId: input.orgId,
+      userId: input.userId,
+      actorName: actorLabel({ name: input.userName, email: input.userEmail }),
+    });
   }
 
   // Claiming work you had queued consumes your own overlapping planned claims.
@@ -257,6 +320,16 @@ export async function createClaim(input: {
       .update(claims)
       .set({ status: "released", releasedAt: now, updatedAt: now })
       .where(inArray(claims.id, ownPlannedIds));
+    for (const plannedId of ownPlannedIds) {
+      await recordClaimEventSafe({
+        claimId: plannedId,
+        orgId: input.orgId,
+        userId: input.userId,
+        actorName: actorLabel({ name: input.userName, email: input.userEmail }),
+        kind: "released",
+        message: "Superseded — the queued work is now an active claim",
+      });
+    }
   }
 
   const ttl = input.ttlSeconds ?? DEFAULT_TTL_SECONDS;
@@ -282,6 +355,31 @@ export async function createClaim(input: {
       updatedAt: now,
     })
     .returning();
+
+  const actor = actorLabel({ name: input.userName, email: input.userEmail });
+  await recordClaimEventSafe({
+    claimId: id,
+    orgId: input.orgId,
+    userId: input.userId,
+    actorName: actor,
+    kind: "claimed",
+    message: input.title.trim(),
+    meta: {
+      ...(files.length ? { files } : {}),
+      ...(input.branch ? { branch: input.branch } : {}),
+      ...(input.agentLabel ? { agent: input.agentLabel } : {}),
+    },
+  });
+  if (input.note?.trim()) {
+    await recordClaimEventSafe({
+      claimId: id,
+      orgId: input.orgId,
+      userId: input.userId,
+      actorName: actor,
+      kind: "note",
+      message: input.note,
+    });
+  }
 
   return {
     claim: toClaimRecord(row!, input.orgSlug, {
@@ -339,7 +437,11 @@ export async function startClaim(
     })
     .map((o) => o.claimId);
   if (stealIds.length > 0) {
-    await forceExpireClaims(stealIds);
+    await forceExpireClaims(stealIds, {
+      orgId: starter.orgId,
+      userId: starter.userId,
+      actorName: actorLabel({ name: starter.userName, email: starter.userEmail }),
+    });
   }
 
   const ttl = opts?.ttlSeconds ?? DEFAULT_TTL_SECONDS;
@@ -358,6 +460,17 @@ export async function startClaim(
     .where(eq(claims.id, claimId))
     .returning();
 
+  await recordClaimEventSafe({
+    claimId,
+    orgId: claim.orgId,
+    userId: starter.userId,
+    actorName: actorLabel({ name: starter.userName, email: starter.userEmail }),
+    kind: "started",
+    message: `Picked up from the planned queue by ${
+      actorLabel({ name: starter.userName, email: starter.userEmail }) ?? "a teammate"
+    }`,
+  });
+
   const org = await db.select().from(organizations).where(eq(organizations.id, claim.orgId)).limit(1);
   return {
     claim: toClaimRecord(updated!, org[0]?.slug ?? "", {
@@ -372,7 +485,13 @@ export async function startClaim(
 export async function heartbeatClaim(
   claimId: string,
   userId: string,
-  opts?: { note?: string | null; ttlSeconds?: number },
+  opts?: {
+    note?: string | null;
+    ttlSeconds?: number;
+    /** Paths actually touched in the working tree — the claim scope grows to match reality. */
+    files?: string[];
+    actorName?: string | null;
+  },
 ) {
   const rows = await db.select().from(claims).where(eq(claims.id, claimId)).limit(1);
   const claim = rows[0];
@@ -382,6 +501,15 @@ export async function heartbeatClaim(
     return { error: "claim is not active or stale", status: 400 as const };
   }
 
+  const existingFiles = claim.files ?? [];
+  const incoming = [...new Set((opts?.files ?? []).map(normalizeFilePath).filter(Boolean))];
+  const addedFiles = incoming.filter((f) => !existingFiles.includes(f));
+  const union = [...existingFiles, ...addedFiles];
+  // A working tree this dirty is not one claim's scope — keep the declared files.
+  const syncSkipped = union.length > MAX_SYNC_FILES ? ("too_many_files" as const) : null;
+  const nextFiles = syncSkipped ? existingFiles : union;
+  const synced = syncSkipped ? [] : addedFiles;
+
   const ttl = opts?.ttlSeconds ?? DEFAULT_TTL_SECONDS;
   const now = new Date();
   const [updated] = await db
@@ -389,19 +517,56 @@ export async function heartbeatClaim(
     .set({
       status: "active",
       note: opts?.note !== undefined ? opts.note : claim.note,
+      files: nextFiles,
       expiresAt: new Date(now.getTime() + ttl * 1000),
       updatedAt: now,
     })
     .where(eq(claims.id, claimId))
     .returning();
 
-  return { claim: updated! };
+  // Agents heartbeat on a timer: only an actually changed note is progress.
+  const noteChanged = opts?.note?.trim() && opts.note.trim() !== (claim.note ?? "").trim();
+  if (noteChanged) {
+    await recordClaimEventSafe({
+      claimId,
+      orgId: claim.orgId,
+      userId,
+      actorName: opts!.actorName ?? null,
+      kind: "note",
+      message: opts!.note,
+    });
+  }
+  if (synced.length > 0) {
+    const shown = synced.slice(0, 5).join(", ");
+    const rest = synced.length > 5 ? ` (+${synced.length - 5} more)` : "";
+    await recordClaimEventSafe({
+      claimId,
+      orgId: claim.orgId,
+      userId,
+      actorName: opts?.actorName ?? null,
+      kind: "files_synced",
+      message: `Now also touching ${synced.length} file${synced.length === 1 ? "" : "s"}: ${shown}${rest}`,
+      meta: { added: synced },
+    });
+  }
+
+  // Files the agent grew into may belong to someone else — warn on the way back.
+  let overlaps: OverlapInfo[] = [];
+  if (synced.length > 0) {
+    const board = await listBoardClaims(claim.orgId, claim.repo);
+    overlaps = findOverlaps(
+      { title: "", files: synced, roadmapRef: null },
+      board.filter((c) => c.id !== claimId),
+    ).filter((o) => o.status === "active" || o.status === "stale");
+  }
+
+  return { claim: updated!, addedFiles: synced, overlaps, syncSkipped };
 }
 
 export async function releaseClaim(
   claimId: string,
   userId: string,
-  opts?: { resolvedRef?: string | null },
+  opts?: { resolvedRef?: string | null; actorName?: string | null },
 ) {
   const rows = await db.select().from(claims).where(eq(claims.id, claimId)).limit(1);
   const claim = rows[0];
@@ -420,7 +585,27 @@ export async function releaseClaim(
     .where(eq(claims.id, claimId))
     .returning();
 
+  const resolved = opts?.resolvedRef ?? claim.resolvedRef;
+  await recordClaimEventSafe({
+    claimId,
+    orgId: claim.orgId,
+    userId,
+    actorName: opts?.actorName ?? null,
+    kind: "released",
+    message: resolved ? `Released → ${resolved}` : "Released",
+    meta: resolved ? { resolvedRef: resolved } : null,
+  });
+
   return { claim: updated! };
+}
+
+/** Claim row, but only for a caller who is on that claim's board. */
+export async function getClaimForOrg(claimId: string, orgId: string) {
+  const rows = await db.select().from(claims).where(eq(claims.id, claimId)).limit(1);
+  const claim = rows[0];
+  if (!claim) return { error: "not found", status: 404 as const };
+  if (claim.orgId !== orgId) return { error: "forbidden", status: 403 as const };
+  return { claim };
 }
 
 export async function findActiveClaimForUser(orgId: string, repo: string, userId: string) {

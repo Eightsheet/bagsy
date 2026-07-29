@@ -19,6 +19,8 @@ The CLI talks to that URL by default. Override only if you run your own API: `BA
 - **Team** (WorkOS organization) = people who share a claim board. Membership is the access gate.
 - **Repos belong to a team** — link once to put a remote on that team’s board.
 - **CLI follows `git remote`** — `status` / `claim` pick the team that has this remote linked. If it’s linked in more than one of your teams, the CLI asks (or use `--org slug`).
+- **Claims keep a timeline** — every state change (claimed, started, stale, stolen, released) is recorded, plus whatever the agent reports via `heartbeat --note`. `bagsy log <id>` shows the full history; `status` shows the tail. This is what makes the takeover decision on a STALE claim an informed one.
+- **Claim scope tracks the real diff** — each heartbeat syncs the files the working tree actually touched and widens the claim, so overlap detection matches reality rather than the file list guessed up front.
 
 ## Install CLI
 

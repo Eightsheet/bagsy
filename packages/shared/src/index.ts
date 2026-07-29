@@ -38,7 +38,47 @@ export interface ClaimRecord {
   startedAt: string;
   expiresAt: string;
   updatedAt: string;
+  /** Newest-last tail of the claim timeline; full log via GET /v1/claims/:id/events. */
+  recentEvents?: ClaimEvent[];
+  /** Total timeline entries, so callers know a tail was truncated. */
+  eventCount?: number;
 }
+
+/**
+ * Timeline entry on a claim. `note` is agent-written progress; everything else
+ * is recorded by the API on state changes, so a claim has a usable history even
+ * when nobody writes notes.
+ */
+export type ClaimEventKind =
+  | "claimed"
+  | "planned"
+  | "started"
+  | "note"
+  | "files_synced"
+  | "stale"
+  | "stolen"
+  | "released";
+
+export interface ClaimEvent {
+  id: string;
+  claimId: string;
+  kind: ClaimEventKind;
+  message: string | null;
+  /** Denormalized so the history survives the actor being deleted. */
+  actorName: string | null;
+  meta: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+/** Timeline entries kept per claim; older ones are pruned on write. */
+export const MAX_CLAIM_EVENTS = 50;
+/** Timeline entries embedded in board/status responses. */
+export const RECENT_CLAIM_EVENTS = 3;
+/**
+ * Upper bound for a heartbeat file sync. A working tree dirtier than this is
+ * not a claim scope — syncing it would smear the claim over the whole repo.
+ */
+export const MAX_SYNC_FILES = 100;
 
 export interface OverlapInfo {
   claimId: string;
