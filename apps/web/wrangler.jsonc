@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "bagsy-web",
+  "name": "bagsy",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-01",
   // Production API on Railway; override locally via .dev.vars.

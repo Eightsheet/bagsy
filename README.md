@@ -90,7 +90,7 @@ Enable / verify in the [WorkOS Dashboard](https://dashboard.workos.com):
 
 1. **Authentication → AuthKit** — AuthKit enabled for the environment
 2. **Applications** → your app → **Redirects** — register exactly (web Worker origin, not the Railway API):
-   - the `bagsy-web` Workers URL + `/auth/callback`
+   - the `bagsy` Workers URL + `/auth/callback`
    - (local) `http://localhost:8787/auth/callback`
 3. Use the **same** Application’s Client ID + API key that Railway has (mismatch → `invalid_client`)
 
@@ -143,7 +143,7 @@ Create a team or invite a teammate from the web UI — Bagsy creates the WorkOS 
 WorkOS redirect URIs (the **web** origin — the Worker proxies the callback to the API):
 
 - Local: `http://localhost:8787/auth/callback`
-- Prod: the `bagsy-web` Workers URL + `/auth/callback`
+- Prod: the `bagsy` Workers URL + `/auth/callback`
 
 ## CLI
 
