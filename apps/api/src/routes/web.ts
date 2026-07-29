@@ -532,7 +532,7 @@ type AdminGate =
   | { ok: false; error: string }
   | { ok: true; user: AuthUser; org: AuthOrg };
 
-/** Active team + assert the caller is one of its admins. */
+/** Active team + assert the caller is one of its admins (the owner counts). */
 async function requireActiveTeamAdmin(c: Context): Promise<AdminGate> {
   const user = c.get("sessionUser")!;
   const org = c.get("sessionOrg");
@@ -540,7 +540,7 @@ async function requireActiveTeamAdmin(c: Context): Promise<AdminGate> {
     return { ok: false, error: "Pick a team in the header first" };
   }
   const role = await membershipRole(org.id, user.id);
-  if (role !== "admin") {
+  if (role !== "admin" && role !== "owner") {
     return { ok: false, error: "Only team admins can manage members" };
   }
   return { ok: true, user, org };
