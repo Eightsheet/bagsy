@@ -23,8 +23,19 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile=false
+
+      # Bundle the Worker BEFORE anything builds @bagsy/shared, so this job
+      # sees what a fresh clone sees. Cloudflare Workers Builds deploys from a
+      # clean checkout where dist/ does not exist (it is gitignored), and CI
+      # went green on a deploy that could not resolve @bagsy/shared at all.
+      # wrangler runs the [build] command in apps/web/wrangler.jsonc, which is
+      # what makes this resolve.
+      - name: Bundle web Worker (fresh-clone conditions)
+        run: pnpm --filter @bagsy/web exec wrangler deploy --dry-run --outdir "$RUNNER_TEMP/wdry"
+
       - run: pnpm --filter @bagsy/shared build
       - run: pnpm --filter @bagsy/api exec tsc -p tsconfig.json --noEmit
+      - run: pnpm --filter @bagsy/web exec tsc -p tsconfig.json --noEmit
       - run: pnpm --filter @bagsy/cli build
       - run: node packages/cli/dist/bagsy.js --help
       - name: Pack CLI (smoke)

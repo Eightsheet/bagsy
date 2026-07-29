@@ -3,6 +3,14 @@
   "name": "bagsy",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-01",
+  // @bagsy/shared resolves through its "exports" to dist/, and dist is
+  // gitignored — so on a fresh clone (Workers Builds, a new checkout) the
+  // bundle cannot resolve it until it has been compiled. CI already does this
+  // explicitly before typechecking; the deploy has to do it too.
+  "build": {
+    "command": "pnpm --filter @bagsy/shared build",
+    "cwd": "../.."
+  },
   // Production API on Railway; override locally via .dev.vars.
   "vars": {
     "API_ORIGIN": "https://repo-org-production.up.railway.app"
