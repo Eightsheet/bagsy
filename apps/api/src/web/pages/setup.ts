@@ -20,6 +20,7 @@ export function setupPage(opts: {
   repos: Array<{ repo: string; verifiedAt: Date | null }>;
   members?: SetupMember[];
   pendingInvites?: SetupPendingInvite[];
+  canManage?: boolean;
   flash?: string | null;
   error?: string | null;
   defaultOrgName: string;
@@ -31,6 +32,7 @@ export function setupPage(opts: {
     repos,
     members = [],
     pendingInvites = [],
+    canManage = false,
     flash,
     error,
     defaultOrgName,
@@ -51,14 +53,36 @@ export function setupPage(opts: {
               ${members
                 .map((m) => {
                   const label = m.name?.trim() || m.email || m.userId;
-                  const you = m.userId === user.id ? ' <span class="muted">(you)</span>' : "";
+                  const isSelf = m.userId === user.id;
+                  const you = isSelf ? ' <span class="muted">(you)</span>' : "";
+                  const isAdmin = m.role === "admin";
+                  // Admins manage everyone but themselves here; self-actions live
+                  // in the danger zone (Leave team) to avoid an accidental click.
+                  const actions =
+                    canManage && !isSelf
+                      ? `<span class="member-actions" style="display:inline-flex;gap:6px">
+                           <form method="post" action="/orgs/members/role" style="display:inline">
+                             <input type="hidden" name="user_id" value="${escapeHtml(m.userId)}" />
+                             <input type="hidden" name="role" value="${isAdmin ? "member" : "admin"}" />
+                             <button type="submit" class="link-btn">${isAdmin ? "Make member" : "Make admin"}</button>
+                           </form>
+                           <form method="post" action="/orgs/members/remove" style="display:inline"
+                                 onsubmit="return confirm('Remove ${escapeHtml(label).replace(/'/g, "\\'")} from this team?')">
+                             <input type="hidden" name="user_id" value="${escapeHtml(m.userId)}" />
+                             <button type="submit" class="link-btn danger">Remove</button>
+                           </form>
+                         </span>`
+                      : "";
                   return `
                 <li>
                   <span>
                     <strong>${escapeHtml(label)}</strong>${you}
                     ${m.email && m.name ? `<span class="muted" style="display:block;font-size:0.85rem">${escapeHtml(m.email)}</span>` : ""}
                   </span>
-                  <span class="badge">${escapeHtml(m.role)}</span>
+                  <span style="display:inline-flex;align-items:center;gap:10px">
+                    ${actions}
+                    <span class="badge">${escapeHtml(m.role)}</span>
+                  </span>
                 </li>`;
                 })
                 .join("")}
@@ -74,7 +98,18 @@ export function setupPage(opts: {
                    (inv) => `
                 <li>
                   <code>${escapeHtml(inv.email)}</code>
-                  <span class="badge">Pending</span>
+                  <span style="display:inline-flex;align-items:center;gap:10px">
+                    ${
+                      canManage
+                        ? `<form method="post" action="/orgs/invites/revoke" style="display:inline"
+                                 onsubmit="return confirm('Revoke the invite for ${escapeHtml(inv.email).replace(/'/g, "\\'")}?')">
+                             <input type="hidden" name="invitation_id" value="${escapeHtml(inv.id)}" />
+                             <button type="submit" class="link-btn danger">Revoke</button>
+                           </form>`
+                        : ""
+                    }
+                    <span class="badge">Pending</span>
+                  </span>
                 </li>`,
                  )
                  .join("")}
@@ -273,10 +308,25 @@ export function setupPage(opts: {
       </details>`
     : "";
 
+  const leaveTeamForm = org
+    ? `
+      <details class="quiet-details">
+        <summary>Leave team “${escapeHtml(org.name)}”</summary>
+        <p class="muted" style="margin:10px 0 6px">Removes you from this team’s board. You keep your account and other teams. If you are the team’s only admin, promote someone else first.</p>
+        <form method="post" action="/orgs/members/leave" class="stack" style="margin-top:8px"
+              onsubmit="return confirm('Leave “${escapeHtml(org.name).replace(/'/g, "\\'")}”?')">
+          <div class="row">
+            <button type="submit" class="ghost">Leave this team</button>
+          </div>
+        </form>
+      </details>`
+    : "";
+
   const accountConfirm = user.email ?? "delete my account";
   const dangerPanel = `
     <section class="panel danger">
       <h2>Danger zone</h2>
+      ${leaveTeamForm}
       ${deleteTeamForm}
       <details class="quiet-details">
         <summary>Delete my account</summary>

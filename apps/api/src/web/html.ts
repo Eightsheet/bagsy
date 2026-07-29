@@ -362,6 +362,24 @@ h2 {
   color: var(--on-highlight);
 }
 
+/* Inline, text-sized actions inside lists (member/invite rows). */
+button.link-btn {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 3px 8px;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  width: auto;
+}
+button.link-btn:hover {
+  background: var(--highlight);
+  color: var(--on-highlight);
+  transform: none;
+}
+button.link-btn.danger { color: var(--danger); border-color: var(--danger-line, var(--line)); }
+button.link-btn.danger:hover { background: var(--danger-wash); color: var(--danger); }
+
 .btn-secondary, a.btn-secondary {
   background: var(--bg);
   color: var(--ink);
