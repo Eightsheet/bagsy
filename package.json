@@ -5,6 +5,8 @@
   "scripts": {
     "build": "pnpm -r run build",
     "dev": "pnpm --filter @bagsy/api dev",
+    "dev:web": "pnpm --filter @bagsy/web dev",
+    "deploy:web": "pnpm --filter @bagsy/web deploy",
     "db:generate": "pnpm --filter @bagsy/api db:generate",
     "db:migrate": "pnpm --filter @bagsy/api db:migrate",
     "start": "pnpm --filter @bagsy/api start"

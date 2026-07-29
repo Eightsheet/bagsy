@@ -131,6 +131,14 @@ const PNG_32_BASE64 =
   "SUkKT24xen3R4/cDnxOb7dFMtzKVpmFGExQU3LrQioYW5KdoUlRUiIsJ4Tf9z0MfiizYMNeyOF1LQgK9QLUylcYVMuS0iz5e" +
   "99y22HpCo2Fntf6CflOsaWa06TgYLQAAy+Pd3ozIe3cAAAAASUVORK5CYII=";
 
-export const faviconIco = Buffer.from(ICO_BASE64, "base64");
-export const appleTouchIcon = Buffer.from(APPLE_TOUCH_ICON_BASE64, "base64");
-export const favicon32Png = Buffer.from(PNG_32_BASE64, "base64");
+// Workers runtime has no Buffer; decode via atob.
+function bytes(base64: string): Uint8Array {
+  const bin = atob(base64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+export const faviconIco = bytes(ICO_BASE64);
+export const appleTouchIcon = bytes(APPLE_TOUCH_ICON_BASE64);
+export const favicon32Png = bytes(PNG_32_BASE64);

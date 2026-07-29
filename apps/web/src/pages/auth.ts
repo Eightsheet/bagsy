@@ -1,4 +1,4 @@
-import { escapeHtml, layout } from "../html.js";
+import { escapeHtml, layout } from "../html";
 
 export function landingPage(): string {
   return layout(
