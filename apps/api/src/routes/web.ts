@@ -147,15 +147,12 @@ webRoutes.get("/login", (c) => {
   const state = next ? `next:${next}` : undefined;
   const workosUrl = getAuthKitUrl(`${appUrl()}/auth/callback`, { state });
   if (!workosUrl) {
-    return c.html(loginPage({ workosUrl: null }), 503);
+    return c.html(loginPage(), 503);
   }
 
-  // Prefer immediate redirect for CLI/device flows
-  if (next?.startsWith("/device")) {
-    return c.redirect(workosUrl);
-  }
-
-  return c.html(loginPage({ workosUrl }));
+  // Straight to AuthKit. The old interstitial "Continue with WorkOS" page was a
+  // redundant second click before the same redirect device/CLI flows already did.
+  return c.redirect(workosUrl);
 });
 
 webRoutes.get("/auth/callback", async (c) => {
