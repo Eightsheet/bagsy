@@ -58,6 +58,31 @@ Status: **Done** · Claim ref: `roadmap:R2-cli-team-remote`
 3. CLI auto-picks the sole linked team; if several → interactive prompt once (remembered in `repoTeams`) or `--org`.
 4. Web copy explains team → linked repos → CLI follows remote.
 
+### R3 — Partial-file claims (ranges within a file)
+
+Status: **Done** · Claim ref: `roadmap:R3-partial-file-claims`
+
+Today a claim holds whole file paths. For large files (schema, routes, one big `index.ts`) that serializes work that could run in parallel. Let a claim optionally scope down to **regions of a file**, so two agents can work in the same file without stepping on each other.
+
+Shipped shape:
+
+1. `bagsy claim -f path/big.ts:120-240` claims only those lines (also `:120` single line, `:120-240,300-360` multi-range); a bare path still claims the whole file.
+2. Overlap check compares ranges on the same path: disjoint ranges → no conflict; whole-file vs. any range → conflict. Across different paths (globs, dir prefixes) ranges are ignored.
+3. Heartbeat file-sync sends the touched diff hunks (`git diff -U0`); a range claim widens to cover edits outside its region, with the same overlap warning as today. Files not claimed with ranges keep whole-file semantics.
+
+Resolved defaults:
+
+- Line numbers, not symbol anchors — cheap and good enough because heartbeat sync continuously re-widens to reality; anchors can come later if drift hurts in practice.
+- New files that sync into a claim join whole-file; ranges exist only where explicitly claimed.
+- Untracked, deleted, or heavily rewritten files (>20 hunks) sync as whole paths.
+
+#### Acceptance criteria
+
+- [x] Two claims on disjoint regions of the same file coexist without overlap warnings.
+- [x] A range claim vs. a whole-file claim on the same path is reported as a conflict.
+- [x] `bagsy status` shows the claimed region, not just the path.
+- [x] Heartbeat sync widens a range claim when edits land outside the claimed region.
+
 ## Out of scope (for now)
 
 - Billing / seats
