@@ -3,7 +3,14 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { MAX_SYNC_FILES, parseGitRemoteUrl } from "@bagsy/shared";
+import {
+  MAX_SYNC_FILES,
+  formatFileClaim,
+  mergeRanges,
+  parseGitRemoteUrl,
+  parseUnifiedDiffRanges,
+  type LineRange,
+} from "@bagsy/shared";
 import {
   CLI_VERSION,
   fetchCliUpdate,
@@ -68,6 +75,8 @@ Usage:
   bagsy status [--repo owner/name] [--org slug]
   bagsy claim -t TITLE [-f FILE ...] [--roadmap REF] [--branch B] [--strict] [--steal] [--note NOTE] [--org slug]
   bagsy plan -t TITLE [-f FILE ...] [--roadmap REF] [--note NOTE]   # queue intent — no TTL, never blocks
+      -f accepts line ranges: -f src/big.ts:120-240 (also :120 or :120-240,300-360).
+      Disjoint ranges of the same file don't conflict; a plain path claims the whole file.
   bagsy start CLAIM_ID [--steal]   # activate a planned claim (yours or a teammate's)
   bagsy heartbeat [--note NOTE] [--claim ID] [--no-sync-files]
   bagsy log [claim-id|current] [--org slug]   # full timeline of a claim
@@ -210,6 +219,15 @@ function detectBranch(): string | null {
  * default branch. A file list declared before the work started is always a
  * guess — this is the real scope.
  */
+function branchBase(): string | null {
+  const base =
+    git("git merge-base HEAD origin/HEAD 2>/dev/null") ??
+    git("git merge-base HEAD origin/main 2>/dev/null") ??
+    git("git merge-base HEAD origin/master 2>/dev/null");
+  // Only ever interpolate a resolved object id into the shell.
+  return base && /^[0-9a-f]{7,40}$/.test(base) ? base : null;
+}
+
 function changedFiles(): string[] {
   const out = new Set<string>();
   const collect = (raw: string | null) => {
@@ -223,16 +241,46 @@ function changedFiles(): string[] {
   collect(git("git diff --name-only HEAD 2>/dev/null"));
   collect(git("git ls-files --others --exclude-standard 2>/dev/null"));
 
-  const base =
-    git("git merge-base HEAD origin/HEAD 2>/dev/null") ??
-    git("git merge-base HEAD origin/main 2>/dev/null") ??
-    git("git merge-base HEAD origin/master 2>/dev/null");
-  // Only ever interpolate a resolved object id into the shell.
-  if (base && /^[0-9a-f]{7,40}$/.test(base)) {
+  const base = branchBase();
+  if (base) {
     collect(git(`git diff --name-only ${base} HEAD 2>/dev/null`));
   }
 
   return [...out];
+}
+
+/** More hunks than this and the file is effectively rewritten — claim it whole. */
+const MAX_RANGES_PER_FILE = 20;
+
+/** Accumulate new-side hunk ranges from `git diff -U0` output into `into` (per path). */
+function collectDiffRanges(raw: string | null, into: Map<string, LineRange[]>) {
+  if (!raw) return;
+  for (const [path, ranges] of parseUnifiedDiffRanges(raw)) {
+    into.set(path, [...(into.get(path) ?? []), ...ranges]);
+  }
+}
+
+/**
+ * changedFiles(), narrowed to the touched line ranges where git can tell us
+ * (`src/big.ts:120-240`). Untracked, deleted, or heavily rewritten files stay
+ * whole-path. The server only uses ranges to widen claims that were made with
+ * ranges — everything else falls back to whole-file scope as before.
+ */
+function changedFileClaims(): string[] {
+  const paths = changedFiles();
+  const ranges = new Map<string, LineRange[]>();
+  collectDiffRanges(git("git diff -U0 --no-color HEAD 2>/dev/null"), ranges);
+  const base = branchBase();
+  if (base) {
+    collectDiffRanges(git(`git diff -U0 --no-color ${base} HEAD 2>/dev/null`), ranges);
+  }
+  return paths.map((path) => {
+    const r = ranges.get(path);
+    if (!r || r.length === 0) return path;
+    const merged = mergeRanges(r);
+    if (merged.length > MAX_RANGES_PER_FILE) return path;
+    return formatFileClaim({ path, ranges: merged });
+  });
 }
 
 function formatEventLine(event: {
@@ -646,7 +694,7 @@ async function heartbeat(args: string[]) {
   const id = argValue(args, "--claim") ?? cfg.currentClaimId;
   if (!id) die("No claim id. Pass --claim ID or claim first.");
   const note = argValue(args, "--note");
-  const files = hasFlag(args, "--no-sync-files") ? [] : changedFiles();
+  const files = hasFlag(args, "--no-sync-files") ? [] : changedFileClaims();
 
   const res = await api(cfg, `/v1/claims/${id}/heartbeat`, {
     method: "POST",
