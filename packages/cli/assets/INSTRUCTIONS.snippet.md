@@ -7,7 +7,7 @@ Before any meaningful implementation (editing code, starting a roadmap item, mul
 1. Install the CLI: `npm install -g @bagsy/cli`
 2. `bagsy status` — if not logged in, `bagsy login` first
 3. If the repo is not linked (`status` exit 2): `bagsy link-repo`
-4. Claim before you start: `bagsy claim -t "short title" -f path/one -f path/two`
+4. Claim before you start: `bagsy claim -t "short title" -f path/one -f path/two` — for a small change in a big file, claim only the region: `-f src/big.ts:120-240` (disjoint ranges of the same file don't conflict)
 5. After each completed step: `bagsy heartbeat --note "what you just finished"` — this appends to the claim's timeline and widens the claim to the files you have actually touched
 6. When done or switching: `bagsy release current --result <PR-URL-or-commit-SHA>`
 

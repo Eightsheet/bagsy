@@ -4,8 +4,10 @@ import {
   MAX_SYNC_FILES,
   SOFT_HOLD_SECONDS,
   findOverlaps,
+  mergeFileClaims,
   normalizeFilePath,
   normalizeRepo,
+  unionFileClaims,
   type ClaimEvent,
   type ClaimRecord,
   type OverlapInfo,
@@ -214,7 +216,7 @@ export async function createClaim(input: {
   }
 
   const board = await listBoardClaims(input.orgId, linked.repo);
-  const files = input.files.map(normalizeFilePath).filter(Boolean);
+  const files = mergeFileClaims(input.files.map(normalizeFilePath).filter(Boolean));
   const overlaps = findOverlaps(
     {
       title: input.title,
@@ -502,9 +504,9 @@ export async function heartbeatClaim(
   }
 
   const existingFiles = claim.files ?? [];
-  const incoming = [...new Set((opts?.files ?? []).map(normalizeFilePath).filter(Boolean))];
-  const addedFiles = incoming.filter((f) => !existingFiles.includes(f));
-  const union = [...existingFiles, ...addedFiles];
+  const incoming = (opts?.files ?? []).map(normalizeFilePath).filter(Boolean);
+  // Range-aware: a range claim widens by the touched hunks; whole-file entries absorb everything.
+  const { files: union, added: addedFiles } = unionFileClaims(existingFiles, incoming);
   // A working tree this dirty is not one claim's scope — keep the declared files.
   const syncSkipped = union.length > MAX_SYNC_FILES ? ("too_many_files" as const) : null;
   const nextFiles = syncSkipped ? existingFiles : union;
