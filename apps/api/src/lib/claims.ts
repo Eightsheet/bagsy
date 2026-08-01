@@ -4,8 +4,10 @@ import {
   MAX_SYNC_FILES,
   SOFT_HOLD_SECONDS,
   findOverlaps,
+  mergeFileClaims,
   normalizeFilePath,
   normalizeRepo,
+  unionFileClaims,
   type ClaimEvent,
   type ClaimRecord,
   type OverlapInfo,
@@ -214,7 +216,7 @@ export async function createClaim(input: {
   }
 
   const board = await listBoardClaims(input.orgId, linked.repo);
-  const files = input.files.map(normalizeFilePath).filter(Boolean);
+  const files = mergeFileClaims(input.files.map(normalizeFilePath).filter(Boolean));
   const overlaps = findOverlaps(
     {
       title: input.title,
@@ -484,7 +486,7 @@ export async function startClaim(
 
 export async function heartbeatClaim(
   claimId: string,
-  userId: string,
+  caller: { userId: string; orgId: string },
   opts?: {
     note?: string | null;
     ttlSeconds?: number;
@@ -496,15 +498,17 @@ export async function heartbeatClaim(
   const rows = await db.select().from(claims).where(eq(claims.id, claimId)).limit(1);
   const claim = rows[0];
   if (!claim) return { error: "not found", status: 404 as const };
-  if (claim.userId !== userId) return { error: "forbidden", status: 403 as const };
+  if (claim.orgId !== caller.orgId || claim.userId !== caller.userId) {
+    return { error: "forbidden", status: 403 as const };
+  }
   if (claim.status !== "active" && claim.status !== "stale") {
     return { error: "claim is not active or stale", status: 400 as const };
   }
 
   const existingFiles = claim.files ?? [];
-  const incoming = [...new Set((opts?.files ?? []).map(normalizeFilePath).filter(Boolean))];
-  const addedFiles = incoming.filter((f) => !existingFiles.includes(f));
-  const union = [...existingFiles, ...addedFiles];
+  const incoming = (opts?.files ?? []).map(normalizeFilePath).filter(Boolean);
+  // Range-aware: a range claim widens by the touched hunks; whole-file entries absorb everything.
+  const { files: union, added: addedFiles } = unionFileClaims(existingFiles, incoming);
   // A working tree this dirty is not one claim's scope — keep the declared files.
   const syncSkipped = union.length > MAX_SYNC_FILES ? ("too_many_files" as const) : null;
   const nextFiles = syncSkipped ? existingFiles : union;
@@ -530,7 +534,7 @@ export async function heartbeatClaim(
     await recordClaimEventSafe({
       claimId,
       orgId: claim.orgId,
-      userId,
+      userId: caller.userId,
       actorName: opts!.actorName ?? null,
       kind: "note",
       message: opts!.note,
@@ -542,7 +546,7 @@ export async function heartbeatClaim(
     await recordClaimEventSafe({
       claimId,
       orgId: claim.orgId,
-      userId,
+      userId: caller.userId,
       actorName: opts?.actorName ?? null,
       kind: "files_synced",
       message: `Now also touching ${synced.length} file${synced.length === 1 ? "" : "s"}: ${shown}${rest}`,
@@ -565,13 +569,15 @@ export async function heartbeatClaim(
 
 export async function releaseClaim(
   claimId: string,
-  userId: string,
+  caller: { userId: string; orgId: string },
   opts?: { resolvedRef?: string | null; actorName?: string | null },
 ) {
   const rows = await db.select().from(claims).where(eq(claims.id, claimId)).limit(1);
   const claim = rows[0];
   if (!claim) return { error: "not found", status: 404 as const };
-  if (claim.userId !== userId) return { error: "forbidden", status: 403 as const };
+  if (claim.orgId !== caller.orgId || claim.userId !== caller.userId) {
+    return { error: "forbidden", status: 403 as const };
+  }
 
   const now = new Date();
   const [updated] = await db
@@ -589,7 +595,7 @@ export async function releaseClaim(
   await recordClaimEventSafe({
     claimId,
     orgId: claim.orgId,
-    userId,
+    userId: caller.userId,
     actorName: opts?.actorName ?? null,
     kind: "released",
     message: resolved ? `Released → ${resolved}` : "Released",

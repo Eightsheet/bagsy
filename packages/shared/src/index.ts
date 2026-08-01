@@ -110,8 +110,19 @@ export function normalizeRepo(input: string): string {
   return `${parts[0]!.toLowerCase()}/${parts[1]!.toLowerCase()}`;
 }
 
-/** Normalize file paths for overlap comparison. */
-export function normalizeFilePath(path: string): string {
+/** Inclusive 1-based line range within a claimed file. */
+export interface LineRange {
+  start: number;
+  end: number;
+}
+
+/** Parsed claim file entry: `src/big.ts:120-240,300` → path + ranges. `ranges: null` = whole file. */
+export interface FileClaim {
+  path: string;
+  ranges: LineRange[] | null;
+}
+
+function normalizePathPart(path: string): string {
   return path
     .trim()
     .replace(/\\/g, "/")
@@ -120,16 +131,163 @@ export function normalizeFilePath(path: string): string {
     .toLowerCase();
 }
 
+const RANGE_SUFFIX = /^(.+?):(\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*)$/;
+
+/** Parse a claim file entry. A `:120-240[,…]` suffix scopes the claim to line ranges. */
+export function parseFileClaim(entry: string): FileClaim {
+  const m = RANGE_SUFFIX.exec(entry.trim());
+  if (!m) return { path: normalizePathPart(entry), ranges: null };
+  const ranges = m[2]!.split(",").map((part) => {
+    const [a, b] = part.split("-");
+    const start = Math.max(1, parseInt(a!, 10));
+    const end = b === undefined ? start : Math.max(1, parseInt(b, 10));
+    return start <= end ? { start, end } : { start: end, end: start };
+  });
+  return { path: normalizePathPart(m[1]!), ranges: mergeRanges(ranges) };
+}
+
+export function formatFileClaim(fc: FileClaim): string {
+  if (!fc.ranges || fc.ranges.length === 0) return fc.path;
+  const parts = fc.ranges.map((r) => (r.start === r.end ? `${r.start}` : `${r.start}-${r.end}`));
+  return `${fc.path}:${parts.join(",")}`;
+}
+
+/** Sort and merge overlapping or adjacent ranges. */
+export function mergeRanges(ranges: LineRange[]): LineRange[] {
+  const sorted = [...ranges].sort((a, b) => a.start - b.start || a.end - b.end);
+  const out: LineRange[] = [];
+  for (const r of sorted) {
+    const last = out[out.length - 1];
+    if (last && r.start <= last.end + 1) last.end = Math.max(last.end, r.end);
+    else out.push({ ...r });
+  }
+  return out;
+}
+
+export function rangesIntersect(a: LineRange[], b: LineRange[]): boolean {
+  return a.some((x) => b.some((y) => x.start <= y.end && y.start <= x.end));
+}
+
+/** Parts of `a` not covered by `b`. */
+export function subtractRanges(a: LineRange[], b: LineRange[]): LineRange[] {
+  const out: LineRange[] = [];
+  for (const r of mergeRanges(a)) {
+    let segments: LineRange[] = [{ ...r }];
+    for (const cut of b) {
+      const next: LineRange[] = [];
+      for (const seg of segments) {
+        if (cut.end < seg.start || cut.start > seg.end) {
+          next.push(seg);
+          continue;
+        }
+        if (cut.start > seg.start) next.push({ start: seg.start, end: cut.start - 1 });
+        if (cut.end < seg.end) next.push({ start: cut.end + 1, end: seg.end });
+      }
+      segments = next;
+    }
+    out.push(...segments);
+  }
+  return out;
+}
+
+/** Normalize file paths for overlap comparison. Preserves a line-range suffix. */
+export function normalizeFilePath(entry: string): string {
+  return formatFileClaim(parseFileClaim(entry));
+}
+
+/** Canonicalize a claim's file list: one entry per path; whole-file wins over ranges. */
+export function mergeFileClaims(entries: string[]): string[] {
+  const byPath = new Map<string, LineRange[] | null>();
+  for (const entry of entries) {
+    const fc = parseFileClaim(entry);
+    if (!fc.path) continue;
+    const prev = byPath.get(fc.path);
+    if (prev === null || !fc.ranges) byPath.set(fc.path, null);
+    else byPath.set(fc.path, mergeRanges([...(prev ?? []), ...fc.ranges]));
+  }
+  return [...byPath.entries()].map(([path, ranges]) => formatFileClaim({ path, ranges }));
+}
+
+export interface FileSyncResult {
+  files: string[];
+  /** Newly covered scope (`path` or `path:ranges`), empty when nothing widened. */
+  added: string[];
+}
+
+/**
+ * Widen a claim's file scope to what the working tree actually touched.
+ * New paths join whole-file (ranges are only kept where they were claimed);
+ * a range entry grows by the incoming ranges, or to whole-file when the
+ * incoming entry carries none.
+ */
+export function unionFileClaims(existing: string[], incoming: string[]): FileSyncResult {
+  const byPath = new Map<string, FileClaim>();
+  for (const entry of mergeFileClaims(existing)) {
+    const fc = parseFileClaim(entry);
+    byPath.set(fc.path, fc);
+  }
+  const added: string[] = [];
+  for (const entry of mergeFileClaims(incoming)) {
+    const inc = parseFileClaim(entry);
+    if (!inc.path) continue;
+    const cur = byPath.get(inc.path);
+    if (!cur) {
+      byPath.set(inc.path, { path: inc.path, ranges: null });
+      added.push(inc.path);
+      continue;
+    }
+    if (!cur.ranges) continue;
+    if (!inc.ranges) {
+      byPath.set(inc.path, { path: inc.path, ranges: null });
+      added.push(inc.path);
+      continue;
+    }
+    const fresh = subtractRanges(inc.ranges, cur.ranges);
+    if (fresh.length === 0) continue;
+    byPath.set(inc.path, { path: inc.path, ranges: mergeRanges([...cur.ranges, ...inc.ranges]) });
+    added.push(formatFileClaim({ path: inc.path, ranges: fresh }));
+  }
+  return { files: [...byPath.values()].map(formatFileClaim), added };
+}
+
+/**
+ * New-side line ranges per file from unified diff output (`git diff -U0`).
+ * A pure deletion (count 0) still marks the line it happened at.
+ */
+export function parseUnifiedDiffRanges(raw: string): Map<string, LineRange[]> {
+  const out = new Map<string, LineRange[]>();
+  let current: string | null = null;
+  for (const line of raw.split("\n")) {
+    if (line.startsWith("+++ ")) {
+      const p = line.slice(4).trim();
+      current = p.startsWith("b/") ? p.slice(2) : p === "/dev/null" ? null : p;
+      continue;
+    }
+    if (current === null || !line.startsWith("@@")) continue;
+    const m = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(line);
+    if (!m) continue;
+    const start = Math.max(1, parseInt(m[1]!, 10));
+    const count = m[2] === undefined ? 1 : parseInt(m[2]!, 10);
+    const end = Math.max(start, start + count - 1);
+    out.set(current, [...(out.get(current) ?? []), { start, end }]);
+  }
+  return out;
+}
+
 export function pathsOverlap(a: string, b: string): boolean {
-  const left = normalizeFilePath(a);
-  const right = normalizeFilePath(b);
-  if (left === right) return true;
-  // glob-ish: trailing /** or * treated as prefix
-  const leftPrefix = left.replace(/\*\*?$/, "").replace(/\/$/, "");
-  const rightPrefix = right.replace(/\*\*?$/, "").replace(/\/$/, "");
-  if (left.includes("*") && right.startsWith(leftPrefix)) return true;
-  if (right.includes("*") && left.startsWith(rightPrefix)) return true;
-  if (left.startsWith(right + "/") || right.startsWith(left + "/")) return true;
+  const left = parseFileClaim(a);
+  const right = parseFileClaim(b);
+  if (left.path === right.path) {
+    // Same file: whole-file blocks everything; two range claims only clash where they intersect.
+    if (!left.ranges || !right.ranges) return true;
+    return rangesIntersect(left.ranges, right.ranges);
+  }
+  // glob-ish: trailing /** or * treated as prefix (ranges are moot across different paths)
+  const leftPrefix = left.path.replace(/\*\*?$/, "").replace(/\/$/, "");
+  const rightPrefix = right.path.replace(/\*\*?$/, "").replace(/\/$/, "");
+  if (left.path.includes("*") && right.path.startsWith(leftPrefix)) return true;
+  if (right.path.includes("*") && left.path.startsWith(rightPrefix)) return true;
+  if (left.path.startsWith(right.path + "/") || right.path.startsWith(left.path + "/")) return true;
   return false;
 }
 

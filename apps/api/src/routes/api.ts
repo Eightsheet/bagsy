@@ -131,7 +131,7 @@ apiRoutes.post("/v1/claims/current/release", async (c) => {
     .parse(await c.req.json());
   const current = await findActiveClaimForUser(auth.org.id, body.repo, auth.user.id);
   if (!current) return c.json({ error: "no active claim" }, 404);
-  const result = await releaseClaim(current.id, auth.user.id, {
+  const result = await releaseClaim(current.id, { userId: auth.user.id, orgId: auth.org.id }, {
     resolvedRef: body.resolvedRef ?? null,
     actorName: auth.user.name ?? auth.user.email ?? null,
   });
@@ -180,10 +180,14 @@ apiRoutes.post("/v1/claims/:id/heartbeat", async (c) => {
     })
     .parse((await c.req.json().catch(() => ({}))) ?? {});
 
-  const result = await heartbeatClaim(c.req.param("id"), auth.user.id, {
-    ...body,
-    actorName: auth.user.name ?? auth.user.email ?? null,
-  });
+  const result = await heartbeatClaim(
+    c.req.param("id"),
+    { userId: auth.user.id, orgId: auth.org.id },
+    {
+      ...body,
+      actorName: auth.user.name ?? auth.user.email ?? null,
+    },
+  );
   if ("error" in result) return c.json({ error: result.error }, result.status);
   return c.json({
     claim: result.claim,
@@ -219,7 +223,7 @@ apiRoutes.post("/v1/claims/:id/release", async (c) => {
       resolvedRef: z.string().max(500).optional().nullable(),
     })
     .parse((await c.req.json().catch(() => ({}))) ?? {});
-  const result = await releaseClaim(c.req.param("id"), auth.user.id, {
+  const result = await releaseClaim(c.req.param("id"), { userId: auth.user.id, orgId: auth.org.id }, {
     resolvedRef: body.resolvedRef ?? null,
     actorName: auth.user.name ?? auth.user.email ?? null,
   });

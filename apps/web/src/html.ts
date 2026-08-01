@@ -362,66 +362,76 @@ h2 {
   color: var(--on-highlight);
 }
 
-/* Inline, text-sized actions inside lists (member/invite rows). */
-button.link-btn {
-  background: transparent;
-  border: 1px solid var(--line);
-  color: var(--muted);
-  padding: 3px 8px;
-  font-size: 0.8rem;
-  border-radius: 6px;
-  width: auto;
-}
-button.link-btn:hover {
-  background: var(--highlight);
-  color: var(--on-highlight);
-  transform: none;
-}
-button.link-btn.danger { color: var(--danger); border-color: var(--danger-line, var(--line)); }
-button.link-btn.danger:hover { background: var(--danger-wash); color: var(--danger); }
-
 /* Per-row "Manage" disclosure: opening it is the are-you-sure step, so the
    actions inside spell out exactly what they do instead of a browser confirm. */
 .row-manage { position: relative; }
+
 .row-manage summary {
   cursor: pointer;
   list-style: none;
   color: var(--muted);
-  font-size: 0.8rem;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 3px 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 4px;
+  white-space: nowrap;
 }
 .row-manage summary::-webkit-details-marker { display: none; }
-.row-manage summary::after { content: " ▾"; }
-.row-manage[open] summary::after { content: " ▴"; }
+.row-manage summary::before { content: "+ "; }
+.row-manage[open] summary::before { content: "– "; }
 .row-manage summary:hover,
 .row-manage[open] summary {
   background: var(--highlight);
   color: var(--on-highlight);
-  border-color: var(--ink);
 }
+.row-manage summary:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* Floating menu = a miniature .list: hard ink edge, hairline-separated rows. */
 .row-manage-actions {
   position: absolute;
   right: 0;
   top: calc(100% + 6px);
   z-index: 10;
   min-width: 240px;
+  max-width: min(300px, calc(100vw - 32px));
   background: var(--surface);
-  border: 1px solid var(--ink);
-  border-radius: 8px;
-  padding: 8px;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
 }
 .row-manage-actions form { margin: 0; }
+.row-manage-actions form + form { border-top: 1px solid var(--line); }
+
+/* Inline, text-sized actions inside the row menus. */
 .row-manage-actions button.link-btn {
   width: 100%;
+  justify-content: flex-start;
   text-align: left;
-  border-color: transparent;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--ink);
 }
-.row-manage-actions button.link-btn:hover { border-color: var(--ink); transform: none; }
+.row-manage-actions button.link-btn:hover {
+  background: var(--highlight);
+  color: var(--on-highlight);
+  transform: none;
+}
+.row-manage-actions button.link-btn:active { transform: none; }
+.row-manage-actions button.link-btn.danger { color: var(--danger); }
+.row-manage-actions button.link-btn.danger:hover {
+  background: var(--danger-wash);
+  color: var(--danger);
+}
 
 .btn-secondary, a.btn-secondary {
   background: var(--bg);
@@ -698,6 +708,20 @@ export function layout(
           go();
         }
       });
+    });
+    // The per-row Manage menus are native <details>, which only close via their
+    // own summary; make them behave like menus: click elsewhere or Escape closes.
+    function closeManageMenus(except) {
+      document.querySelectorAll("details.row-manage[open]").forEach(function (d) {
+        if (d !== except) d.removeAttribute("open");
+      });
+    }
+    document.addEventListener("click", function (e) {
+      var inside = e.target instanceof Element ? e.target.closest("details.row-manage") : null;
+      closeManageMenus(inside);
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeManageMenus(null);
     });
   })();
   </script>
