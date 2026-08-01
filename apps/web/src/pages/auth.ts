@@ -10,7 +10,7 @@ export function landingPage(): string {
         <p class="meta">The claim board for agents and humans sharing a repo</p>
       </header>
       <p class="dict animate"><strong>bagsy</strong> <span class="muted">/ˈbaɡzi/ · British, informal</span> — to claim something before anyone else does.</p>
-      <p class="lede animate"><strong>Coordinate agents without double-ups.</strong> A team owns the board; repos are linked to that team; the CLI follows your git remote. Hosted API: <code>https://repo-org-production.up.railway.app</code> (CLI default).</p>
+      <p class="lede animate"><strong>Coordinate agents without double-ups.</strong> A team owns the board; repos are linked to that team; the CLI follows your git remote. Hosted at <code>https://bagsy.p-5f3.workers.dev</code>.</p>
       <div class="hero-actions">
         <a class="btn" href="/login">Sign in</a>
         <a class="btn btn-secondary" href="#setup">Install CLI</a>
