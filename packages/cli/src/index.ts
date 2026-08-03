@@ -73,8 +73,8 @@ Usage:
   bagsy login              # opens browser → WorkOS AuthKit
   bagsy login --token TOKEN
   bagsy status [--repo owner/name] [--org slug]
-  bagsy claim -t TITLE [-f FILE ...] [--roadmap REF] [--branch B] [--strict] [--steal] [--note NOTE] [--org slug]
-  bagsy plan -t TITLE [-f FILE ...] [--roadmap REF] [--note NOTE]   # queue intent — no TTL, never blocks
+  bagsy claim -t TITLE [-f FILE ...] [--roadmap REF] [--plan-url URL] [--branch B] [--strict] [--steal] [--note NOTE] [--org slug]
+  bagsy plan -t TITLE [-f FILE ...] [--roadmap REF] [--plan-url URL] [--note NOTE]   # queue intent — no TTL, never blocks
       -f accepts line ranges: -f src/big.ts:120-240 (also :120 or :120-240,300-360).
       Disjoint ranges of the same file don't conflict; a plain path claims the whole file.
   bagsy start CLAIM_ID [--steal]   # activate a planned claim (yours or a teammate's)
@@ -568,6 +568,7 @@ async function status(args: string[]) {
     console.log(`${claim.title} — ${claim.userName ?? claim.userEmail ?? claim.userId}`);
     if (claim.branch) console.log(`branch: ${claim.branch}`);
     if (claim.roadmapRef) console.log(`roadmap: ${claim.roadmapRef}`);
+    if (claim.planUrl) console.log(`plan: ${claim.planUrl}`);
     if (claim.files?.length) console.log(`files: ${claim.files.join(", ")}`);
     if (claim.note) console.log(`note: ${claim.note}`);
     printTimeline(claim);
@@ -583,6 +584,7 @@ async function status(args: string[]) {
       console.log(`# ${claim.id} [PLANNED]`);
       console.log(`${claim.title} — ${claim.userName ?? claim.userEmail ?? claim.userId}`);
       if (claim.roadmapRef) console.log(`roadmap: ${claim.roadmapRef}`);
+      if (claim.planUrl) console.log(`plan: ${claim.planUrl}`);
       if (claim.files?.length) console.log(`files: ${claim.files.join(", ")}`);
       if (claim.description) console.log(`context: ${claim.description}`);
       if (claim.note) console.log(`note: ${claim.note}`);
@@ -597,6 +599,10 @@ async function claim(args: string[], opts?: { planned?: boolean }) {
   const title = argValue(args, "-t") ?? argValue(args, "--title");
   if (!title) die(`${cmdName} requires -t TITLE`);
   const files = [...argList(args, "-f"), ...argList(args, "--file")];
+  const planUrl = argValue(args, "--plan-url") ?? null;
+  if (planUrl && !/^https?:\/\//.test(planUrl)) {
+    die(`--plan-url must be an http:// or https:// URL, got: ${planUrl}`);
+  }
   const repo = detectRepo(argValue(args, "--repo"));
   const team = await resolveLinkedTeam(cfg, repo, argValue(args, "--org"));
   if (!team) {
@@ -610,6 +616,7 @@ async function claim(args: string[], opts?: { planned?: boolean }) {
     description: argValue(args, "--desc") ?? argValue(args, "--description") ?? null,
     branch: planned ? argValue(args, "--branch") ?? null : argValue(args, "--branch") ?? detectBranch(),
     roadmapRef: argValue(args, "--roadmap") ?? null,
+    planUrl,
     agentLabel: argValue(args, "--agent") ?? env("AGENT_LABEL") ?? null,
     note: argValue(args, "--note") ?? null,
     strict: hasFlag(args, "--strict"),
@@ -638,12 +645,14 @@ async function claim(args: string[], opts?: { planned?: boolean }) {
   if (planned) {
     console.log(`Planned ${res.json.claim.id}: ${res.json.claim.title}`);
     console.log(`Team: ${team.name} (${team.slug})`);
+    if (res.json.claim.planUrl) console.log(`plan: ${res.json.claim.planUrl}`);
     console.log(`Pick it up later with: bagsy start ${res.json.claim.id}`);
   } else {
     cfg.currentClaimId = res.json.claim.id;
     saveConfig(cfg);
     console.log(`Claimed ${res.json.claim.id}: ${res.json.claim.title}`);
     console.log(`Team: ${team.name} (${team.slug})`);
+    if (res.json.claim.planUrl) console.log(`plan: ${res.json.claim.planUrl}`);
   }
   if (res.json.stole?.length) {
     console.log(`Stole soft-held claims: ${res.json.stole.join(", ")}`);
