@@ -83,6 +83,22 @@ Resolved defaults:
 - [x] `bagsy status` shows the claimed region, not just the path.
 - [x] Heartbeat sync widens a range claim when edits land outside the claimed region.
 
+### R4 — Plan links on claims
+
+Status: **Done** · Claim ref: `roadmap:R4-plan-links`
+
+A claim title plus a few notes is thin evidence when deciding whether to steal a STALE claim or pick up a planned one. Let a claim carry a link to the full published plan (typically a Shareframe HTML artifact) so teammates can read the actual intent before acting.
+
+Shipped shape:
+
+1. `bagsy claim` / `bagsy plan` accept `--plan-url URL` (http(s) only); stored on the claim at create time.
+2. API: nullable `plan_url` column on `claims`, `planUrl` in the claim body (validated URL, max 500) and in every claim response.
+3. `bagsy status` shows a `plan: <url>` line for claims that have one; the URL is also echoed after a successful claim/plan.
+
+Resolved defaults:
+
+- Create-time only — heartbeats cannot rewrite the plan link; publish a new artifact and re-claim if the plan changes materially.
+
 ## Out of scope (for now)
 
 - Billing / seats
