@@ -73,12 +73,23 @@ Acceptance criteria:
 
 Status: **Planned**
 
-Compact reference (~80 lines) for information-carrying inline SVG: flows, timelines, architecture, comparisons, annotated states — never decorative clip-art. Core rules: fixed viewBox on an 8px grid; `currentColor` and `var(--ink)`/`var(--accent)` so illustrations inherit the direction palette and dark mode for free; text ≥12px rendered, `font-family: inherit`; boxes sized to measured label length; arrows edge-to-edge with `marker-end`, never through text; series distinguished by hatch/dot patterns from the scaffold defs, not extra hues; figures framed as numbered plates where the direction calls for it. Any artifact containing an illustration requires the S3 preview review — overlapping labels and disconnected arrows are the canonical generated-SVG failures.
+Compact reference (~80 lines) for information-carrying inline SVG: flows, timelines, architecture, comparisons, annotated states — never decorative clip-art.
+
+Method (proven in a prior session's architecture map; generalizes to any system diagram):
+
+1. **Diagram as argument, not data dump.** Decide the 2–3 claims the picture should make before placing anything; every layout choice follows from them. Auto-layout (mermaid) has no opinion — meaningless geometry is why generated diagrams feel bad.
+2. **Strict visual budget, one meaning per channel.** Position = zone/stage (columns left→right in request/flow direction); line style = semantics (solid request, dashed fire-and-forget, thick live channel); exactly one accent, spent only on the edges that matter (secrets, trust); containment replaces edge bundles. Hard cap ≤12 boxes — merge until under it.
+3. **Plan coordinates as a table before writing SVG.** ~140px gutters for edge labels; check every orthogonal edge for crossings by comparing x/y ranges on paper first.
+4. **Verify by looking.** Render, inspect as an image, fix collisions (lines through text, clipped boxes), repeat until clean — the first draft is never collision-free. This is the S3 `preview --shots` loop; S3 also removes the method's headless-Chrome availability caveat.
+5. **Inherit the design.** Use the direction's tokens (`currentColor`, `var(--ink)`/`var(--accent)`, `font-family: inherit`) so the figure looks native, never like a tool's output.
+
+Mechanics: fixed viewBox on an 8px grid, ~1100px wide with `width:100%; min-width:1000px` in an overflow-x container; text ≥12px rendered; boxes sized to measured label length; arrows edge-to-edge with `marker-end`, never through text; series distinguished by hatch/dot patterns from the scaffold defs per the Paper Brief assignment rules; figures framed as numbered plates where the direction calls for it. Trade-off stated in the guide: ~10× the effort of a mermaid block, tops out around 15 boxes — for throwaway sketches or 30-node graphs, a pre-rendered simple flow is the right tool.
 
 Acceptance criteria:
 
 - [ ] Guide fits in one reference file; scaffold defs (S2) cover its patterns.
 - [ ] A generated flow diagram with 6+ nodes passes visual review without manual fixes in the common case.
+- [ ] An architecture map built per the method reads its 2–3 claims from layout alone (verified in the S6 blind review).
 
 ### S6 — Eval gallery
 
