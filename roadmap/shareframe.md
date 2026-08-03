@@ -4,7 +4,18 @@
 
 **Decision:** Quality control moves from the per-agent skill into the Shareframe product. The CLI becomes the control point (scaffold → check → preview → publish gate); the skill shrinks to routing and judgment. No agent-in-the-CLI generation unless evals prove skill-guided authoring insufficient (S7).
 
-Design references: [Røde — Designing better artifacts for Dia](https://www.linkedin.com/pulse/designing-better-artifacts-dia-browser-christine-r%C3%B8de-z0ame) (consistent · subtly varied · rooted in convention; constraints as the quality signal), [Dia — Meet Reports](https://www.diabrowser.com/release-notes/1-39-1-reports) (aggregation-first, sources cited, "finishing touches are yours").
+Design references: [Røde — Designing better artifacts for Dia](https://www.linkedin.com/pulse/designing-better-artifacts-dia-browser-christine-r%C3%B8de-z0ame) (consistent · subtly varied · rooted in convention; constraints as the quality signal), [thread with the artifact wall shot](https://x.com/chrstnerode/status/2065070625970946175).
+
+**Decision (Paper Brief):** Adopt Dia's report aesthetic — analyzed from the artifact wall image — as a new flagship direction for reports and plans:
+
+- One ink, many papers: near-black ink (`#1a1917`) on rotating pastel paper tints (blush `#fdeae4`, mint `#e8f0e4`, pale blue `#e2ecf6`, butter `#faf3d7`, lavender `#ece7f6`); layout identical, paper varies per artifact in a series.
+- Memo chrome: uppercase letterspaced doc type top-left, full date top-right, hairline rule below.
+- Two-tier type: large italic serif display titles (`ui-serif`/Georgia italic — no web fonts) over small sans labels/body; Roman-numeral italic section heads; bold reserved for inline key numbers.
+- Stat band: hairline-framed row of large figures with muted micro-labels and a comparison line ("34.2% · Adoption · vs. 25% target").
+- Numbered items as a label + description two-column grid.
+- Chart texture *assignment rules*, not just recipes: solid ink fill to the lowest-mean series, then dots, then crosshatch; same dark ink on every bar in inked modes.
+
+Skipped from Dia: painting covers (need external raster assets; Gallery direction approximates the mood) and the sheet-on-wood staging (photo presentation, not document design).
 
 Note: S1–S3 and S7 are implemented in the Shareframe repo; S4–S6 in the installed skill (`~/.claude/skills/shareframe-publish`, upstreamed to the skill source). Tracked here because the design system originates from Workboard's house style.
 
@@ -26,7 +37,7 @@ Acceptance criteria:
 
 Status: **Planned**
 
-Scaffold an artifact file with a design direction baked in as code: direction tokens, "same poster, printed on black paper" dark block, `color-scheme: light dark`, protective overflow CSS, CSS-only interaction furniture (`+`/`–` details markers, numbered steps, ink-rule lists), optional rise-in motion with `prefers-reduced-motion` fallback, print block, and an `<svg><defs>` block (arrowhead markers, hatch/dot patterns, plate frame) for illustrations. Directions: the six from the skill, with Xerox Brief upgraded to Workboard's house execution (highlighter system, `--on-highlight`, rule-above section labels). `--list` prints directions with one-line moods.
+Scaffold an artifact file with a design direction baked in as code: direction tokens, "same poster, printed on black paper" dark block, `color-scheme: light dark`, protective overflow CSS, CSS-only interaction furniture (`+`/`–` details markers, numbered steps, ink-rule lists), optional rise-in motion with `prefers-reduced-motion` fallback, print block, and an `<svg><defs>` block (arrowhead markers, hatch/dot patterns, plate frame) for illustrations. Directions: **Paper Brief** (flagship, per the decision above, `--paper <tint>` to pick or rotate the stock) plus the skill's set, with Xerox Brief upgraded to Workboard's house execution (highlighter system, `--on-highlight`, rule-above section labels). `--list` prints directions with one-line moods.
 
 Acceptance criteria:
 
@@ -50,7 +61,7 @@ Acceptance criteria:
 
 Status: **Planned**
 
-With S1–S3 the skill stops carrying enforcement and scaffolding: Fast Path becomes scaffold (`new`) → author → `check` → `preview` shots reviewed → `publish`/`update`. Merge `html-use-cases.md` into the decision tree, fold `html-quality.md` remnants into SKILL.md/template, keep the six directions' *moods and signature moves* as the creative guidance, drop what the checker now gates. Series rule per Dia: same audience/series → same direction, vary paper tint and dateline; new content type → new direction.
+With S1–S3 the skill stops carrying enforcement and scaffolding: Fast Path becomes scaffold (`new`) → author → `check` → `preview` shots reviewed → `publish`/`update`. Merge `html-use-cases.md` into the decision tree, fold `html-quality.md` remnants into SKILL.md/template, keep the directions' *moods and signature moves* as the creative guidance, drop what the checker now gates. Paper Brief becomes the default for reports and plans and absorbs Datasheet and the report-side of Editorial Essay, so the direction count stays flat. Series rule per Dia: same audience/series → same direction, vary paper tint and dateline; new content type → new direction.
 
 Acceptance criteria:
 
