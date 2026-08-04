@@ -103,6 +103,13 @@ Resolved defaults:
 - SIGTERM without grace period: the sweep only fires with zero in-flight requests, and the client-side race (request lands mid-shutdown) is covered by the proxy retry.
 - No warm-up state persistence: the app is stateless between requests (rate-limit map is per-boot, acceptable to lose on sleep).
 
+#### Rollback
+
+Designed to be thrown out the moment real users make always-on worth paying for:
+
+- **Instant, no code:** set `SLEEP_DISABLED=1` on the Railway service → behaves exactly like today (eager boot, never sleeps); the supervisor stays as a neutral pass-through proxy.
+- **Full removal:** revert is one deleted file (`sleeper.ts`) plus two one-line changes (Dockerfile CMD and the api `start` script back to `dist/index.js`). Nothing else references the sleeper; the app itself is untouched.
+
 #### Acceptance criteria
 
 - [ ] First request after idle spins the server up and completes normally (one-time ~1 s latency, no client error).
