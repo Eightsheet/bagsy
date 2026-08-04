@@ -195,6 +195,37 @@ export function normalizeFilePath(entry: string): string {
   return formatFileClaim(parseFileClaim(entry));
 }
 
+const REPO_QUALIFIER = /^([a-z0-9][a-z0-9._-]*\/[a-z0-9._-]+):(.+)$/i;
+const RANGE_ONLY = /^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$/;
+
+/**
+ * Split an optional `owner/name:` qualifier off a claim file entry
+ * (`owner/other-repo:src/foo.ts` → repo + path). A numeric suffix is a line
+ * range, not a qualifier, so `src/big.ts:120-240` stays unqualified.
+ */
+export function splitRepoQualifier(entry: string): { repo: string | null; rest: string } {
+  const m = REPO_QUALIFIER.exec(entry.trim());
+  if (!m || RANGE_ONLY.test(m[2]!)) return { repo: null, rest: entry.trim() };
+  try {
+    return { repo: normalizeRepo(m[1]!), rest: m[2]! };
+  } catch {
+    return { repo: null, rest: entry.trim() };
+  }
+}
+
+/**
+ * Canonical `owner/name:path[:ranges]` form for cross-repo overlap comparison.
+ * Unqualified entries belong to `defaultRepo`. Qualified entries keep their
+ * repo. The output feeds `pathsOverlap` unchanged: equal-path and prefix rules
+ * only ever match within the same repo qualifier.
+ */
+export function qualifyFileClaims(files: string[], defaultRepo: string): string[] {
+  return files.map((entry) => {
+    const { repo, rest } = splitRepoQualifier(entry);
+    return `${repo ?? defaultRepo}:${normalizeFilePath(repo ? rest : entry)}`;
+  });
+}
+
 /** Canonicalize a claim's file list: one entry per path; whole-file wins over ranges. */
 export function mergeFileClaims(entries: string[]): string[] {
   const byPath = new Map<string, LineRange[] | null>();

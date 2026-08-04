@@ -13,10 +13,20 @@ import {
   getClaimForOrg,
   heartbeatClaim,
   listActiveClaims,
+  listBoardClaimsForRepos,
   releaseClaim,
   requireLinkedRepo,
   startClaim,
 } from "../lib/claims.js";
+import {
+  addReposToProject,
+  createProject,
+  deleteProject,
+  getProjectBySlug,
+  getProjectForRepo,
+  listProjects,
+  removeRepoFromProject,
+} from "../lib/projects.js";
 import { newId } from "../lib/crypto.js";
 import { verifyGithubRepoAccess } from "../lib/github.js";
 import { rateLimit } from "../lib/rate-limit.js";
@@ -82,8 +92,17 @@ apiRoutes.get("/v1/repos/:owner/:repo/claims", async (c) => {
   const linked = await requireLinkedRepo(auth.org.id, repo);
   if (!linked.ok) return c.json({ error: linked.error }, 404);
 
-  const claims = await listActiveClaims(auth.org.id, linked.repo);
-  return c.json({ repo: linked.repo, org: auth.org, claims });
+  // A repo in a project shows the whole project's board, not just its own lane.
+  const project = await getProjectForRepo(auth.org.id, linked.repo);
+  const claims = project
+    ? await listBoardClaimsForRepos(auth.org.id, project.repos)
+    : await listActiveClaims(auth.org.id, linked.repo);
+  return c.json({
+    repo: linked.repo,
+    org: auth.org,
+    project: project ? { name: project.name, slug: project.slug, repos: project.repos } : null,
+    claims,
+  });
 });
 
 const claimBody = z.object({
@@ -177,6 +196,8 @@ apiRoutes.post("/v1/claims/:id/heartbeat", async (c) => {
       ttlSeconds: z.number().int().positive().max(24 * 60 * 60).optional(),
       /** Working-tree paths from the CLI; the claim scope grows to match them. */
       files: z.array(z.string().max(400)).max(500).optional(),
+      /** Checkout the CLI runs in — may be a project sibling of the claim's repo. */
+      repo: z.string().max(200).optional().nullable(),
     })
     .parse((await c.req.json().catch(() => ({}))) ?? {});
 
@@ -286,4 +307,68 @@ apiRoutes.get("/v1/repos", async (c) => {
     .from(linkedRepos)
     .where(eq(linkedRepos.orgId, auth.org.id));
   return c.json({ repos: rows });
+});
+
+apiRoutes.get("/v1/projects", async (c) => {
+  const auth = c.get("auth");
+  const projects = await listProjects(auth.org.id);
+  return c.json({ projects });
+});
+
+apiRoutes.post("/v1/projects", async (c) => {
+  const auth = c.get("auth");
+  const body = z
+    .object({
+      name: z.string().min(1).max(100),
+      repos: z.array(z.string().min(3).max(200)).max(50).default([]),
+    })
+    .parse(await c.req.json());
+
+  const result = await createProject({
+    orgId: auth.org.id,
+    name: body.name,
+    repos: body.repos,
+    createdByUserId: auth.user.id,
+  });
+  if ("error" in result) return c.json({ error: result.error }, result.status);
+  return c.json(result, 201);
+});
+
+apiRoutes.get("/v1/projects/:slug", async (c) => {
+  const auth = c.get("auth");
+  const project = await getProjectBySlug(auth.org.id, c.req.param("slug"));
+  if (!project) return c.json({ error: "project not found" }, 404);
+  return c.json({ project });
+});
+
+apiRoutes.post("/v1/projects/:slug/repos", async (c) => {
+  const auth = c.get("auth");
+  const body = z.object({ repo: z.string().min(3).max(200) }).parse(await c.req.json());
+  const project = await getProjectBySlug(auth.org.id, c.req.param("slug"));
+  if (!project) return c.json({ error: "project not found" }, 404);
+
+  const added = await addReposToProject(auth.org.id, project.id, [body.repo]);
+  if (!added.ok) return c.json({ error: added.error }, 400);
+  const fresh = await getProjectBySlug(auth.org.id, project.slug);
+  return c.json({ project: fresh });
+});
+
+apiRoutes.delete("/v1/projects/:slug/repos/:owner/:repo", async (c) => {
+  const auth = c.get("auth");
+  const project = await getProjectBySlug(auth.org.id, c.req.param("slug"));
+  if (!project) return c.json({ error: "project not found" }, 404);
+
+  const repo = normalizeRepo(`${c.req.param("owner")}/${c.req.param("repo")}`);
+  const result = await removeRepoFromProject(auth.org.id, project.id, repo);
+  if (!result.removed) return c.json({ error: `${repo} is not in project "${project.slug}"` }, 404);
+  const fresh = await getProjectBySlug(auth.org.id, project.slug);
+  return c.json({ project: fresh });
+});
+
+apiRoutes.delete("/v1/projects/:slug", async (c) => {
+  const auth = c.get("auth");
+  const project = await getProjectBySlug(auth.org.id, c.req.param("slug"));
+  if (!project) return c.json({ error: "project not found" }, 404);
+  await deleteProject(auth.org.id, project.id);
+  return c.json({ ok: true, deleted: project.slug });
 });
