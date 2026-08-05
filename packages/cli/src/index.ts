@@ -77,11 +77,19 @@ Usage:
   bagsy plan -t TITLE [-f FILE ...] [--roadmap REF] [--plan-url URL] [--note NOTE]   # queue intent — no TTL, never blocks
       -f accepts line ranges: -f src/big.ts:120-240 (also :120 or :120-240,300-360).
       Disjoint ranges of the same file don't conflict; a plain path claims the whole file.
+      In a project, -f owner/other-repo:path claims a file in a sibling repo.
   bagsy start CLAIM_ID [--steal]   # activate a planned claim (yours or a teammate's)
   bagsy heartbeat [--note NOTE] [--claim ID] [--no-sync-files]
   bagsy log [claim-id|current] [--org slug]   # full timeline of a claim
   bagsy release [claim-id|current] [--result PR_URL_OR_SHA] [--org slug]
   bagsy link-repo [owner/name] [--org slug]
+  bagsy project create NAME [--repo owner/name ...] [--org slug]   # group repos into one project
+  bagsy project add-repo NAME [owner/name] [--org slug]
+  bagsy project remove-repo NAME owner/name [--org slug]
+  bagsy project list [--org slug]
+  bagsy project show NAME [--org slug]
+      Repos in a project share one board: status shows all repos' claims and
+      claims conflict across the whole project, not just your checkout.
   bagsy init               # interactive: Claude Code / Codex / Cursor (skills only)
   bagsy init --all
   bagsy init --claude-code --codex --cursor
@@ -553,7 +561,11 @@ async function status(args: string[]) {
   if (res.status !== 200) die(`status failed (${res.status}): ${JSON.stringify(res.json)}`);
 
   const claims = res.json.claims as any[];
+  const project = res.json.project as { name: string; slug: string; repos: string[] } | null;
   console.log(`Team: ${res.json.org.name} (${res.json.org.slug})`);
+  if (project) {
+    console.log(`Project: ${project.name} (${project.slug}) — repos: ${project.repos.join(", ")}`);
+  }
   console.log(`Repo: ${repo}`);
   console.log(`Branch: ${detectBranch() ?? "unknown"}`);
   const wip = claims.filter((c) => c.status !== "planned");
@@ -566,6 +578,7 @@ async function status(args: string[]) {
     const stale = claim.status === "stale" ? " [STALE — soft hold, may have local WIP]" : "";
     console.log(`# ${claim.id}${stale}`);
     console.log(`${claim.title} — ${claim.userName ?? claim.userEmail ?? claim.userId}`);
+    if (project && claim.repo) console.log(`repo: ${claim.repo}`);
     if (claim.branch) console.log(`branch: ${claim.branch}`);
     if (claim.roadmapRef) console.log(`roadmap: ${claim.roadmapRef}`);
     if (claim.planUrl) console.log(`plan: ${claim.planUrl}`);
@@ -583,6 +596,7 @@ async function status(args: string[]) {
       console.log("---");
       console.log(`# ${claim.id} [PLANNED]`);
       console.log(`${claim.title} — ${claim.userName ?? claim.userEmail ?? claim.userId}`);
+      if (project && claim.repo) console.log(`repo: ${claim.repo}`);
       if (claim.roadmapRef) console.log(`roadmap: ${claim.roadmapRef}`);
       if (claim.planUrl) console.log(`plan: ${claim.planUrl}`);
       if (claim.files?.length) console.log(`files: ${claim.files.join(", ")}`);
@@ -712,12 +726,18 @@ async function heartbeat(args: string[]) {
   if (!id) die("No claim id. Pass --claim ID or claim first.");
   const note = argValue(args, "--note");
   const files = hasFlag(args, "--no-sync-files") ? [] : changedFileClaims();
+  // Which checkout this runs in — in a project, a sibling repo's files sync
+  // into that repo's slice of the claim. Never fatal: heartbeats must work
+  // outside a git checkout too.
+  const remote = git("git remote get-url origin 2>/dev/null");
+  const checkoutRepo = remote ? parseGitRemoteUrl(remote) : null;
 
   const res = await api(cfg, `/v1/claims/${id}/heartbeat`, {
     method: "POST",
     body: JSON.stringify({
       note: note ?? undefined,
       files: files.length ? files : undefined,
+      repo: checkoutRepo ?? undefined,
     }),
   });
   if (res.status !== 200) die(`heartbeat failed (${res.status}): ${JSON.stringify(res.json)}`);
@@ -726,6 +746,10 @@ async function heartbeat(args: string[]) {
   if (res.json.syncSkipped === "too_many_files") {
     console.log(
       `Skipped file sync — working tree touches more than ${MAX_SYNC_FILES} files. Claim scope left as declared.`,
+    );
+  } else if (res.json.syncSkipped === "repo_mismatch") {
+    console.log(
+      "Skipped file sync — this checkout is a different repo than the claim (and not in the same project).",
     );
   } else if (res.json.addedFiles?.length) {
     console.log(`Claim now also covers: ${res.json.addedFiles.join(", ")}`);
@@ -859,6 +883,123 @@ async function linkRepo(args: string[]) {
   }
   const verb = res.status === 201 ? "Linked" : "Updated";
   console.log(`${verb} ${res.json.repo.repo} → ${team.name} (${team.slug})`);
+}
+
+/** detectRepo without die() — for commands where a checkout is optional. */
+function detectRepoSoft(): string | null {
+  const remote = git("git remote get-url origin 2>/dev/null");
+  return remote ? parseGitRemoteUrl(remote) : null;
+}
+
+function printProject(project: { name: string; slug: string; repos: string[] }) {
+  console.log(`Project: ${project.name} (${project.slug})`);
+  if (project.repos.length) {
+    for (const repo of project.repos) console.log(`  - ${repo}`);
+  } else {
+    console.log("  (no repos yet — bagsy project add-repo)");
+  }
+}
+
+/** Team for org-scoped project commands: --org, else the current repo's team, else the login default. */
+async function resolveProjectOrg(cfg: Config, explicitOrg?: string): Promise<string | undefined> {
+  if (explicitOrg) return explicitOrg;
+  const repo = detectRepoSoft();
+  if (repo) {
+    const team = await resolveLinkedTeam(cfg, repo).catch(() => null);
+    if (team) return team.slug;
+  }
+  return undefined;
+}
+
+async function projectCmd(args: string[]) {
+  const cfg = loadConfig();
+  const sub = args[0];
+  const rest = args.slice(1);
+  const positional = rest.filter((a, i) => {
+    if (a.startsWith("-")) return false;
+    const prev = rest[i - 1];
+    return prev !== "--org" && prev !== "--repo";
+  });
+  const usageHint =
+    "Usage: bagsy project create NAME [--repo owner/name ...] | add-repo NAME [owner/name] | remove-repo NAME owner/name | list | show NAME";
+
+  switch (sub) {
+    case "create": {
+      const name = positional[0];
+      if (!name) die(`project create requires a name.\n${usageHint}`);
+      const org = await resolveProjectOrg(cfg, argValue(rest, "--org"));
+      let repos = argList(rest, "--repo");
+      if (repos.length === 0) {
+        const current = detectRepoSoft();
+        if (current) repos = [current];
+      }
+      const res = await api(
+        cfg,
+        "/v1/projects",
+        { method: "POST", body: JSON.stringify({ name, repos }) },
+        org,
+      );
+      if (res.status !== 201) die(`project create failed (${res.status}): ${JSON.stringify(res.json)}`);
+      console.log("Created.");
+      printProject(res.json.project);
+      console.log("Repos in a project share one board: cross-repo claims and project-wide status.");
+      return;
+    }
+    case "add-repo": {
+      const name = positional[0];
+      if (!name) die(`project add-repo requires a project name.\n${usageHint}`);
+      const repo = positional[1] ?? detectRepoSoft();
+      if (!repo) die("No repo given and no git remote found. Pass owner/name.");
+      const org = await resolveProjectOrg(cfg, argValue(rest, "--org"));
+      const res = await api(
+        cfg,
+        `/v1/projects/${encodeURIComponent(name)}/repos`,
+        { method: "POST", body: JSON.stringify({ repo }) },
+        org,
+      );
+      if (res.status !== 200) die(`project add-repo failed (${res.status}): ${JSON.stringify(res.json)}`);
+      console.log(`Added ${repo}.`);
+      printProject(res.json.project);
+      return;
+    }
+    case "remove-repo": {
+      const name = positional[0];
+      const repo = positional[1];
+      if (!name || !repo) die(`project remove-repo requires a project name and owner/name.\n${usageHint}`);
+      const org = await resolveProjectOrg(cfg, argValue(rest, "--org"));
+      const res = await api(
+        cfg,
+        `/v1/projects/${encodeURIComponent(name)}/repos/${repo}`,
+        { method: "DELETE" },
+        org,
+      );
+      if (res.status !== 200) die(`project remove-repo failed (${res.status}): ${JSON.stringify(res.json)}`);
+      console.log(`Removed ${repo} — back to standalone claim semantics.`);
+      printProject(res.json.project);
+      return;
+    }
+    case "list": {
+      const res = await api(cfg, "/v1/projects", {}, argValue(rest, "--org"));
+      if (res.status !== 200) die(`project list failed (${res.status}): ${JSON.stringify(res.json)}`);
+      const projects = res.json.projects as Array<{ name: string; slug: string; repos: string[] }>;
+      if (!projects.length) {
+        console.log("No projects yet. Group repos with: bagsy project create NAME --repo owner/name");
+        return;
+      }
+      for (const project of projects) printProject(project);
+      return;
+    }
+    case "show": {
+      const name = positional[0];
+      if (!name) die(`project show requires a project name.\n${usageHint}`);
+      const res = await api(cfg, `/v1/projects/${encodeURIComponent(name)}`, {}, argValue(rest, "--org"));
+      if (res.status !== 200) die(`project show failed (${res.status}): ${JSON.stringify(res.json)}`);
+      printProject(res.json.project);
+      return;
+    }
+    default:
+      die(usageHint);
+  }
 }
 
 async function whoami() {
@@ -1076,6 +1217,9 @@ try {
       break;
     case "link-repo":
       await linkRepo(rest);
+      break;
+    case "project":
+      await projectCmd(rest);
       break;
     case "init":
       await init(rest);

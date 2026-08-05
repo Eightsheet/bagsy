@@ -16,6 +16,7 @@ Shareframe: [Workboard Roadmap — Org create & invite](https://shareframe-worke
 | Org creation | App creates WorkOS org from UI | Done (R1) |
 | Invite | Invite from Workboard → WorkOS invitation email | Done (R1) |
 | Team ↔ repo | Link under active org; CLI uses token’s fixed org | CLI resolves team from git remote; ask if ambiguous |
+| Claim scope | Claims live on one repo; no cross-repo visibility | Done (R4) — repo groups: one project spans repos, claims + status follow |
 | Roles | Creator is auto-admin of the new WorkOS org | Same |
 
 ## Items
@@ -83,11 +84,39 @@ Resolved defaults:
 - [x] `bagsy status` shows the claimed region, not just the path.
 - [x] Heartbeat sync widens a range claim when edits land outside the claimed region.
 
+### R4 — Repo groups (one project across multiple repos)
+
+Status: **Done** · Claim ref: `roadmap:R4-repo-groups`
+
+Today the unit of coordination is a single repo: claims live on `(org, repo)`, `bagsy status` shows one repo, and the overlap check never looks across repos. Real projects often span repos — app + infra, API + SDK, extracted shared lib — so agents working on the same product from different checkouts are invisible to each other. Let a team group linked repos into a **project**, so coordination follows the project, not the checkout.
+
+Shipped shape:
+
+1. A project is an org-level named group of linked repos: `bagsy project create NAME --repo owner/a --repo owner/b`, `bagsy project add-repo NAME owner/c` (schema: `projects` table plus nullable `project_id` on `linked_repos` — a repo belongs to at most one project per org; ungrouped repos behave exactly as today).
+2. `bagsy status` run inside any repo of a project shows the whole project's claims, each labeled with its repo. `--repo owner/name` still targets one checkout.
+3. Claims can span repos in the same project: `-f owner/other-repo:src/foo.ts` prefixes a path with its repo; unprefixed paths keep current-repo semantics (composes with R3 ranges: `owner/repo:src/big.ts:120-240`). Overlap check compares per `(repo, path)` across all active claims in the project; a cross-repo entry targeting a repo outside the project is rejected.
+4. Heartbeat file-sync stays checkout-local: the CLI reports which repo it runs in, and syncing from any sibling checkout updates that repo's slice of the claim's file set (same widening semantics as today). From an unrelated repo, files are skipped (`repo_mismatch`) instead of smearing the claim — the TTL still refreshes.
+5. Roadmap refs are already org-scoped strings, so one `roadmap:...` ref naturally ties claims across the project's repos together in `bagsy log`.
+
+Resolved defaults:
+
+- One project per repo (per org) — no nesting, no overlapping groups; keeps the "which project am I in" resolution as unambiguous as R2's team resolution.
+- Cross-repo claims require the target repo to be in the same project — no ad-hoc cross-repo claims between ungrouped repos, so today's per-repo isolation stays the default.
+- Grouping is purely a coordination scope; it does not change access (membership in the org is still the gate) and does not touch git — one claim, N checkouts.
+
+#### Acceptance criteria
+
+- [x] `bagsy status` from any checkout of a project repo lists active claims across all repos in the project.
+- [x] A claim with files in two repos conflicts with any claim overlapping either repo's paths; disjoint paths across repos coexist.
+- [x] Unprefixed `-f` paths keep exact current behavior; orgs/repos without projects see no change at all.
+- [x] Heartbeat sync from any checkout in the project widens the correct repo's slice of the claim.
+- [x] `bagsy project list` / `show` make the grouping inspectable; `remove-repo` returns a repo to standalone semantics without breaking its active claims.
+
 ### R6 — Server sleep (idle spin-down)
 
 Status: **In progress** · Claim ref: `roadmap:R6-server-sleep`
 
-(R4/R5 live on other branches.) The API idles most of the day — heartbeats only flow while a session is active — yet the full server (Hono + Drizzle + WorkOS + pg client) sits in RAM around the clock, and Railway bills by RAM-minutes. Instead of paying for an idle process: a tiny dependency-free listener holds `$PORT`; on the first incoming request it spawns the real server on an internal port and proxies to it; after 10 minutes without traffic it sends SIGTERM and goes back to holding the port near-zero. Node cold-boots the app in well under a second, so the wake penalty on the first heartbeat is negligible.
+(R5 lives on another branch.) The API idles most of the day — heartbeats only flow while a session is active — yet the full server (Hono + Drizzle + WorkOS + pg client) sits in RAM around the clock, and Railway bills by RAM-minutes. Instead of paying for an idle process: a tiny dependency-free listener holds `$PORT`; on the first incoming request it spawns the real server on an internal port and proxies to it; after 10 minutes without traffic it sends SIGTERM and goes back to holding the port near-zero. Node cold-boots the app in well under a second, so the wake penalty on the first heartbeat is negligible.
 
 Shape:
 
@@ -139,3 +168,4 @@ Resolved defaults:
 - Custom SSO / directory sync UI beyond what WorkOS already provides
 - Transferring org ownership
 - Hard global uniqueness of a GitHub repo to one team forever
+- Web UI for managing projects (CLI + API first; the board API already returns project context)
