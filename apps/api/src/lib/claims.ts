@@ -7,6 +7,8 @@ import {
   mergeFileClaims,
   normalizeFilePath,
   normalizeRepo,
+  qualifyFileClaims,
+  splitRepoQualifier,
   unionFileClaims,
   type ClaimEvent,
   type ClaimRecord,
@@ -16,6 +18,7 @@ import { db } from "../db/client.js";
 import { claims, linkedRepos, organizations, users } from "../db/schema.js";
 import { recentEventsByClaim, recordClaimEventSafe } from "../lib/claim-events.js";
 import { newId } from "../lib/crypto.js";
+import { getProjectForRepo, type ProjectWithRepos } from "../lib/projects.js";
 
 /**
  * active past expiresAt → stale (soft hold, still blocks unless --steal)
@@ -100,10 +103,13 @@ function toClaimRecord(
 /** Planned claims carry no real deadline; expiresAt is set far out and the lifecycle ignores them. */
 const PLANNED_HORIZON_SECONDS = 365 * 24 * 60 * 60;
 
-/** Active + soft-held stale + planned claims visible on the board. */
-export async function listBoardClaims(orgId: string, repo: string): Promise<ClaimRecord[]> {
-  const normalized = normalizeRepo(repo);
-  await refreshClaimLifecycle(orgId, normalized);
+/** Active + soft-held stale + planned claims across a set of repos (a project's board). */
+export async function listBoardClaimsForRepos(
+  orgId: string,
+  repos: string[],
+): Promise<ClaimRecord[]> {
+  const normalized = [...new Set(repos.map(normalizeRepo))];
+  await Promise.all(normalized.map((repo) => refreshClaimLifecycle(orgId, repo)));
 
   const org = await db.select().from(organizations).where(eq(organizations.id, orgId)).limit(1);
   const orgSlug = org[0]?.slug ?? "";
@@ -119,7 +125,7 @@ export async function listBoardClaims(orgId: string, repo: string): Promise<Clai
     .where(
       and(
         eq(claims.orgId, orgId),
-        eq(claims.repo, normalized),
+        inArray(claims.repo, normalized),
         or(
           eq(claims.status, "active"),
           eq(claims.status, "stale"),
@@ -143,8 +149,69 @@ export async function listBoardClaims(orgId: string, repo: string): Promise<Clai
   );
 }
 
+/** Active + soft-held stale + planned claims visible on the board. */
+export async function listBoardClaims(orgId: string, repo: string): Promise<ClaimRecord[]> {
+  return listBoardClaimsForRepos(orgId, [repo]);
+}
+
 export async function listActiveClaims(orgId: string, repo: string): Promise<ClaimRecord[]> {
   return listBoardClaims(orgId, repo);
+}
+
+/**
+ * The board a repo's claims are checked against: its project's repos when
+ * grouped, else just the repo. In project mode, file entries are compared in
+ * repo-qualified form so paths only collide within the same repo.
+ */
+async function projectBoard(
+  orgId: string,
+  repo: string,
+): Promise<{ project: ProjectWithRepos | null; board: ClaimRecord[] }> {
+  const project = await getProjectForRepo(orgId, repo);
+  const board = project
+    ? await listBoardClaimsForRepos(orgId, project.repos)
+    : await listBoardClaims(orgId, repo);
+  return { project, board };
+}
+
+function qualifyBoard(board: ClaimRecord[], excludeId?: string): ClaimRecord[] {
+  return board
+    .filter((c) => c.id !== excludeId)
+    .map((c) => ({ ...c, files: qualifyFileClaims(c.files, c.repo) }));
+}
+
+/**
+ * Canonicalize claim file entries. Own-repo entries stay bare; entries
+ * qualified with a sibling project repo keep an `owner/name:` prefix. Without
+ * a project, a qualifier-shaped entry is just a literal path — exactly
+ * yesterday's behavior.
+ */
+function resolveClaimFiles(
+  entries: string[],
+  ownRepo: string,
+  project: ProjectWithRepos | null,
+): { files: string[] } | { error: string } {
+  const out: string[] = [];
+  for (const raw of entries) {
+    const entry = raw.trim();
+    if (!entry) continue;
+    const { repo, rest } = splitRepoQualifier(entry);
+    if (!repo || !project) {
+      out.push(normalizeFilePath(entry));
+      continue;
+    }
+    if (repo === ownRepo) {
+      out.push(normalizeFilePath(rest));
+      continue;
+    }
+    if (!project.repos.includes(repo)) {
+      return {
+        error: `cross-repo claim target ${repo} is not in project "${project.slug}" (repos: ${project.repos.join(", ")})`,
+      };
+    }
+    out.push(`${repo}:${normalizeFilePath(rest)}`);
+  }
+  return { files: mergeFileClaims(out) };
 }
 
 export async function requireLinkedRepo(orgId: string, repo: string) {
@@ -217,15 +284,19 @@ export async function createClaim(input: {
     return { error: linked.error, overlaps: [], status: 400 };
   }
 
-  const board = await listBoardClaims(input.orgId, linked.repo);
-  const files = mergeFileClaims(input.files.map(normalizeFilePath).filter(Boolean));
+  const { project, board } = await projectBoard(input.orgId, linked.repo);
+  const resolved = resolveClaimFiles(input.files, linked.repo, project);
+  if ("error" in resolved) {
+    return { error: resolved.error, overlaps: [], status: 400 };
+  }
+  const files = resolved.files;
   const overlaps = findOverlaps(
     {
       title: input.title,
-      files,
+      files: project ? qualifyFileClaims(files, linked.repo) : files,
       roadmapRef: input.roadmapRef,
     },
-    board,
+    project ? qualifyBoard(board) : board,
   );
 
   const activeOverlaps = overlaps.filter((o) => o.status === "active");
@@ -418,10 +489,16 @@ export async function startClaim(
     return { error: `claim is ${claim.status}, not planned`, status: 400 as const };
   }
 
-  const board = await listBoardClaims(claim.orgId, claim.repo);
+  const { project, board } = await projectBoard(claim.orgId, claim.repo);
   const overlaps = findOverlaps(
-    { title: claim.title, files: claim.files ?? [], roadmapRef: claim.roadmapRef },
-    board.filter((c) => c.id !== claim.id),
+    {
+      title: claim.title,
+      files: project
+        ? qualifyFileClaims(claim.files ?? [], claim.repo)
+        : claim.files ?? [],
+      roadmapRef: claim.roadmapRef,
+    },
+    project ? qualifyBoard(board, claim.id) : board.filter((c) => c.id !== claim.id),
   );
   const staleOverlaps = overlaps.filter((o) => o.status === "stale");
   const blockingStale = staleOverlaps.filter((o) => {
@@ -496,6 +573,8 @@ export async function heartbeatClaim(
     ttlSeconds?: number;
     /** Paths actually touched in the working tree — the claim scope grows to match reality. */
     files?: string[];
+    /** Repo of the checkout the CLI heartbeats from; may be a project sibling of the claim's repo. */
+    repo?: string | null;
     actorName?: string | null;
   },
 ) {
@@ -510,11 +589,29 @@ export async function heartbeatClaim(
   }
 
   const existingFiles = claim.files ?? [];
-  const incoming = (opts?.files ?? []).map(normalizeFilePath).filter(Boolean);
+  let incoming = (opts?.files ?? []).map(normalizeFilePath).filter(Boolean);
+  // A heartbeat from a sibling checkout syncs into that repo's slice of the
+  // claim; from an unrelated repo the files are noise — refresh the TTL but
+  // do not smear the claim across repos.
+  const syncRepo = opts?.repo ? normalizeRepo(opts.repo) : null;
+  let repoMismatch = false;
+  if (syncRepo && syncRepo !== claim.repo && incoming.length > 0) {
+    const project = await getProjectForRepo(claim.orgId, claim.repo);
+    if (project?.repos.includes(syncRepo)) {
+      incoming = incoming.map((f) => `${syncRepo}:${f}`);
+    } else {
+      incoming = [];
+      repoMismatch = true;
+    }
+  }
   // Range-aware: a range claim widens by the touched hunks; whole-file entries absorb everything.
   const { files: union, added: addedFiles } = unionFileClaims(existingFiles, incoming);
   // A working tree this dirty is not one claim's scope — keep the declared files.
-  const syncSkipped = union.length > MAX_SYNC_FILES ? ("too_many_files" as const) : null;
+  const syncSkipped = repoMismatch
+    ? ("repo_mismatch" as const)
+    : union.length > MAX_SYNC_FILES
+      ? ("too_many_files" as const)
+      : null;
   const nextFiles = syncSkipped ? existingFiles : union;
   const synced = syncSkipped ? [] : addedFiles;
 
@@ -561,10 +658,14 @@ export async function heartbeatClaim(
   // Files the agent grew into may belong to someone else — warn on the way back.
   let overlaps: OverlapInfo[] = [];
   if (synced.length > 0) {
-    const board = await listBoardClaims(claim.orgId, claim.repo);
+    const { project, board } = await projectBoard(claim.orgId, claim.repo);
     overlaps = findOverlaps(
-      { title: "", files: synced, roadmapRef: null },
-      board.filter((c) => c.id !== claimId),
+      {
+        title: "",
+        files: project ? qualifyFileClaims(synced, claim.repo) : synced,
+        roadmapRef: null,
+      },
+      project ? qualifyBoard(board, claimId) : board.filter((c) => c.id !== claimId),
     ).filter((o) => o.status === "active" || o.status === "stale");
   }
 

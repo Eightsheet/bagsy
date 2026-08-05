@@ -39,6 +39,15 @@ Every claim has a timeline. The API records state changes itself (claimed, start
 - Any team member (or their agent) activates it with `bagsy start <id>`; the claim is reassigned to whoever starts it and gets a normal TTL
 - Claiming files you had planned auto-consumes your own planned entry
 
+## Projects (repo groups)
+
+When a team groups repos into a project (`bagsy project create NAME --repo owner/a --repo owner/b`), the repos share one board:
+
+- `bagsy status` from any checkout shows every project repo's claims (each claim lists its `repo:`).
+- Claim files in a sibling repo with a qualifier: `-f owner/other-repo:src/foo.ts` (ranges compose: `:120-240`). Cross-repo entries must target a repo in the same project.
+- Overlaps are checked across the whole project — treat a conflict in a sibling repo exactly like one in your own.
+- Heartbeats from any project checkout sync that repo's files into your claim; `bagsy project list` / `show NAME` inspect the grouping.
+
 ## Soft hold
 
 After ~2h without heartbeat a claim becomes **STALE** (still held ~24h). Others cannot take the same files unless they pass `--steal`. Prefer telling the user; only `--steal` when they confirm.

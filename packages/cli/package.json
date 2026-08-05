@@ -1,6 +1,6 @@
 {
   "name": "@bagsy/cli",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Bagsy — claim work on shared repos so agents and humans don't duplicate effort",
   "type": "module",
   "bin": {

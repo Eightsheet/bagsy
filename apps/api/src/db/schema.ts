@@ -43,6 +43,25 @@ export const memberships = pgTable(
   (t) => [uniqueIndex("memberships_org_user").on(t.orgId, t.userId)],
 );
 
+/**
+ * Repo group: one product spread over several repos. Purely a coordination
+ * scope — claims and status follow the project, membership still gates access.
+ */
+export const projects = pgTable(
+  "projects",
+  {
+    id: text("id").primaryKey(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    slug: text("slug").notNull(),
+    createdByUserId: text("created_by_user_id").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("projects_org_slug").on(t.orgId, t.slug)],
+);
+
 export const linkedRepos = pgTable(
   "linked_repos",
   {
@@ -51,6 +70,8 @@ export const linkedRepos = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     repo: text("repo").notNull(),
+    /** At most one project per repo (per org); null = standalone semantics. */
+    projectId: text("project_id").references(() => projects.id, { onDelete: "set null" }),
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
     linkedByUserId: text("linked_by_user_id").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
