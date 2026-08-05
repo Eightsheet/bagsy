@@ -24,6 +24,8 @@ let starting: Promise<void> | null = null;
 let exited: Promise<void> = Promise.resolve();
 let lastActivity = Date.now();
 let inflight = 0;
+let shuttingDown = false;
+let everBooted = false;
 
 const log = (msg: string) => console.log(`[sleeper] ${msg}`);
 
@@ -58,7 +60,12 @@ function startChild(): Promise<void> {
       if (child === proc) {
         child = null;
         starting = null;
-        if (state !== "stopping") log(`server exited unexpectedly (${signal ?? code})`);
+        if (state !== "stopping" && !shuttingDown) {
+          log(`server exited unexpectedly (${signal ?? code})`);
+          // In always-on mode the container must die with the app, exactly
+          // like running dist/index.js directly (Railway restarts it).
+          if (DISABLED) process.exit(typeof code === "number" ? code : 1);
+        }
         state = "stopped";
       }
       resolve();
@@ -69,6 +76,7 @@ function startChild(): Promise<void> {
       if (child !== proc) throw new Error("server died during boot");
       if (await pingChild()) {
         state = "running";
+        everBooted = true;
         log(`awake on :${INTERNAL_PORT} after ${Date.now() - begun}ms`);
         return;
       }
@@ -120,6 +128,8 @@ const SKIP_HEADERS = new Set([
   "content-length",
 ]);
 
+class BodyTooLargeError extends Error {}
+
 function readBody(req: http.IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -127,8 +137,11 @@ function readBody(req: http.IncomingMessage): Promise<Buffer> {
     req.on("data", (chunk: Buffer) => {
       size += chunk.length;
       if (size > MAX_BODY_BYTES) {
-        reject(new Error("body too large"));
-        req.destroy();
+        // Don't destroy the socket — the 413 still has to reach the client.
+        // Drain and discard the rest; the response carries connection: close.
+        req.removeAllListeners("data");
+        req.resume();
+        reject(new BodyTooLargeError("body too large"));
         return;
       }
       chunks.push(chunk);
@@ -155,18 +168,30 @@ function forward(req: http.IncomingMessage, body: Buffer): Promise<http.Incoming
 
 const listener = http.createServer(async (req, res) => {
   // Answer /health directly while asleep so healthchecks and uptime probes
-  // don't keep the app awake; while awake it proxies to the real endpoint.
-  if (req.url === "/health" && state !== "running") {
+  // don't keep the app awake. While the child is starting (including the
+  // eager boot the deploy healthcheck sees) the request falls through and
+  // waits for the real app, so a probe never reports ok for an app that
+  // can't boot.
+  // everBooted: until the app has proven it can boot once, probes must go
+  // through to it — a failed eager boot may not look healthy from the outside.
+  if (req.url === "/health" && everBooted && (state === "stopped" || state === "stopping")) {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ ok: true, asleep: true }));
     return;
   }
   inflight++;
-  lastActivity = Date.now();
-  res.on("close", () => {
+  let counted = true;
+  const done = () => {
+    if (!counted) return;
+    counted = false;
     inflight--;
     lastActivity = Date.now();
-  });
+  };
+  lastActivity = Date.now();
+  // On Node >= 15 "close" fires per response (keep-alive included); "finish"
+  // is belt and braces so a missed close can never pin inflight above zero.
+  res.on("close", done);
+  res.on("finish", done);
   try {
     const body = await readBody(req);
     // Two attempts: the child can die between the state check and the
@@ -181,6 +206,7 @@ const listener = http.createServer(async (req, res) => {
           if (!SKIP_HEADERS.has(k)) headers[k] = v;
         }
         res.writeHead(upRes.statusCode ?? 502, headers);
+        upRes.on("error", () => res.destroy());
         upRes.pipe(res);
         return;
       } catch (err) {
@@ -190,8 +216,13 @@ const listener = http.createServer(async (req, res) => {
   } catch (err) {
     log(`request failed: ${err instanceof Error ? err.message : err}`);
     if (!res.headersSent) {
-      res.writeHead(503, { "content-type": "application/json" });
-      res.end(JSON.stringify({ error: "upstream_unavailable" }));
+      if (err instanceof BodyTooLargeError) {
+        res.writeHead(413, { "content-type": "application/json", connection: "close" });
+        res.end(JSON.stringify({ error: "payload_too_large" }));
+      } else {
+        res.writeHead(503, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: "upstream_unavailable" }));
+      }
     } else {
       res.destroy();
     }
@@ -207,6 +238,7 @@ listener.listen(PORT, () => {
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, () => {
     log(`${signal} — shutting down`);
+    shuttingDown = true;
     child?.kill("SIGTERM");
     listener.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 3000).unref();
