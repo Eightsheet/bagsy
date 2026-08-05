@@ -35,7 +35,7 @@ Every claim has a timeline. The API records state changes itself (claimed, start
 
 ## Planned claims (roadmap queue)
 
-- Queue future work with context: `bagsy plan -t "title" -f path/one --desc "why + approach" [--roadmap REF]` — no TTL, never blocks anyone
+- Queue future work with context: `bagsy plan -t "title" -f path/one --desc "why + approach" [--roadmap REF] [--plan-url URL]` — no TTL, never blocks anyone; `--plan-url` links a published plan document (e.g. a Shareframe artifact) so others can read the full plan (also works on `bagsy claim`)
 - Any team member (or their agent) activates it with `bagsy start <id>`; the claim is reassigned to whoever starts it and gets a normal TTL
 - Claiming files you had planned auto-consumes your own planned entry
 

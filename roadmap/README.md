@@ -112,6 +112,56 @@ Resolved defaults:
 - [x] Heartbeat sync from any checkout in the project widens the correct repo's slice of the claim.
 - [x] `bagsy project list` / `show` make the grouping inspectable; `remove-repo` returns a repo to standalone semantics without breaking its active claims.
 
+### R6 — Server sleep (idle spin-down)
+
+Status: **In progress** · Claim ref: `roadmap:R6-server-sleep`
+
+(R5 lives on another branch.) The API idles most of the day — heartbeats only flow while a session is active — yet the full server (Hono + Drizzle + WorkOS + pg client) sits in RAM around the clock, and Railway bills by RAM-minutes. Instead of paying for an idle process: a tiny dependency-free listener holds `$PORT`; on the first incoming request it spawns the real server on an internal port and proxies to it; after 10 minutes without traffic it sends SIGTERM and goes back to holding the port near-zero. Node cold-boots the app in well under a second, so the wake penalty on the first heartbeat is negligible.
+
+Shape:
+
+1. `apps/api/src/sleeper.ts` — plain `node:http` + `node:child_process`, no app imports, no dependencies. States: stopped → starting → running → stopping; concurrent wake requests share one spawn; a request that races the shutdown waits for the exit and respawns.
+2. Wake: spawn `dist/index.js` with `PORT=<internal>`, poll `/health` until ready (15 s cap), then stream-proxy request and response. One retry on a refused connection if the child died between requests.
+3. Sleep: a 30 s sweep sends SIGTERM once there are no in-flight requests and the last activity is older than `SLEEP_IDLE_MS` (default 10 min). `SLEEP_DISABLED=1` keeps the child alive permanently (eager spawn, no sweep).
+4. `/health` while asleep is answered by the listener itself (200, `{ok, asleep:true}`) so deploy healthchecks and uptime probes don't keep the app awake; while awake it's proxied. The child is spawned eagerly at boot so the deploy healthcheck still verifies the real app once.
+5. Migrations stay a container-start concern (`migrate.js` before the listener), so wakes don't re-run them.
+
+Resolved defaults:
+
+- In-container sleep, not Railway's native app sleeping: scale-to-zero would save the listener's RAM too, but wake latency becomes a full container cold start and the sleep trigger also counts outbound traffic (DB keepalives can hold it awake). The listener keeps wake cost at "node boots one process".
+- SIGTERM without grace period: the sweep only fires with zero in-flight requests, and the client-side race (request lands mid-shutdown) is covered by the proxy retry.
+- No warm-up state persistence: the app is stateless between requests (rate-limit map is per-boot, acceptable to lose on sleep).
+
+#### Rollback
+
+Designed to be thrown out the moment real users make always-on worth paying for:
+
+- **Instant, no code:** set `SLEEP_DISABLED=1` on the Railway service → behaves exactly like today (eager boot, never sleeps); the supervisor stays as a neutral pass-through proxy.
+- **Full removal:** revert is one deleted file (`sleeper.ts`) plus two one-line changes (Dockerfile CMD and the api `start` script back to `dist/index.js`). Nothing else references the sleeper; the app itself is untouched.
+
+#### Acceptance criteria
+
+- [ ] First request after idle spins the server up and completes normally (one-time ~1 s latency, no client error).
+- [ ] Ten minutes without requests drops RSS to listener-only; a later request wakes it again.
+- [ ] Deploy healthcheck passes and verifies a real app boot; subsequent `/health` probes don't prevent sleep.
+- [ ] `SLEEP_DISABLED=1` restores today's always-on behavior exactly.
+
+### R7 — Plan links on claims
+
+Status: **Done** · Claim ref: `roadmap:R7-plan-links` (shipped claims used `roadmap:R4-plan-links` before the number collided with repo groups)
+
+A claim title plus a few notes is thin evidence when deciding whether to steal a STALE claim or pick up a planned one. Let a claim carry a link to the full published plan (typically a Shareframe HTML artifact) so teammates can read the actual intent before acting.
+
+Shipped shape:
+
+1. `bagsy claim` / `bagsy plan` accept `--plan-url URL` (http(s) only); stored on the claim at create time.
+2. API: nullable `plan_url` column on `claims`, `planUrl` in the claim body (validated URL, max 500) and in every claim response.
+3. `bagsy status` shows a `plan: <url>` line for claims that have one; the URL is also echoed after a successful claim/plan.
+
+Resolved defaults:
+
+- Create-time only — heartbeats cannot rewrite the plan link; publish a new artifact and re-claim if the plan changes materially.
+
 ## Out of scope (for now)
 
 - Billing / seats

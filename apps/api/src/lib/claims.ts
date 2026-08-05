@@ -86,6 +86,7 @@ function toClaimRecord(
     description: row.description,
     files: row.files ?? [],
     roadmapRef: row.roadmapRef,
+    planUrl: row.planUrl,
     agentLabel: row.agentLabel,
     note: row.note,
     userId: row.userId,
@@ -267,6 +268,7 @@ export async function createClaim(input: {
   description?: string | null;
   files: string[];
   roadmapRef?: string | null;
+  planUrl?: string | null;
   agentLabel?: string | null;
   note?: string | null;
   strict?: boolean;
@@ -315,6 +317,7 @@ export async function createClaim(input: {
         description: input.description ?? null,
         files,
         roadmapRef: input.roadmapRef ?? null,
+        planUrl: input.planUrl ?? null,
         agentLabel: input.agentLabel ?? null,
         note: input.note ?? null,
         userId: input.userId,
@@ -419,6 +422,7 @@ export async function createClaim(input: {
       description: input.description ?? null,
       files,
       roadmapRef: input.roadmapRef ?? null,
+      planUrl: input.planUrl ?? null,
       agentLabel: input.agentLabel ?? null,
       note: input.note ?? null,
       userId: input.userId,

@@ -6,8 +6,8 @@ COPY packages/shared ./packages/shared
 COPY packages/cli ./packages/cli
 COPY apps/api ./apps/api
 RUN pnpm install --frozen-lockfile=false
-RUN pnpm --filter @repo-org/shared build \
- && pnpm --filter @repo-org/api build
+RUN pnpm --filter @bagsy/shared build \
+ && pnpm --filter @bagsy/api build
 
 FROM node:22-alpine
 WORKDIR /app
@@ -25,4 +25,4 @@ COPY --from=build /app/apps/api/drizzle ./apps/api/drizzle
 COPY --from=build /app/apps/api/package.json ./apps/api/package.json
 WORKDIR /app/apps/api
 EXPOSE 3000
-CMD ["sh", "-c", "node dist/db/migrate.js && node dist/index.js"]
+CMD ["sh", "-c", "node dist/db/migrate.js && node dist/sleeper.js"]
