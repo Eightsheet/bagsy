@@ -600,8 +600,16 @@ async function claim(args: string[], opts?: { planned?: boolean }) {
   if (!title) die(`${cmdName} requires -t TITLE`);
   const files = [...argList(args, "-f"), ...argList(args, "--file")];
   const planUrl = argValue(args, "--plan-url") ?? null;
-  if (planUrl && !/^https?:\/\//.test(planUrl)) {
-    die(`--plan-url must be an http:// or https:// URL, got: ${planUrl}`);
+  if (planUrl) {
+    let protocol = "";
+    try {
+      protocol = new URL(planUrl).protocol;
+    } catch {
+      // leave empty — fails the check below
+    }
+    if (protocol !== "http:" && protocol !== "https:") {
+      die(`--plan-url must be an http:// or https:// URL, got: ${planUrl}`);
+    }
   }
   const repo = detectRepo(argValue(args, "--repo"));
   const team = await resolveLinkedTeam(cfg, repo, argValue(args, "--org"));
