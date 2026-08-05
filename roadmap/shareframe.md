@@ -1,0 +1,110 @@
+# Shareframe Roadmap — Artifact quality
+
+**04 Aug 2026** · Product + skill decisions
+
+**Decision:** Quality control moves from the per-agent skill into the Shareframe product. The CLI becomes the control point (scaffold → check → preview → publish gate); the skill shrinks to routing and judgment. No agent-in-the-CLI generation unless evals prove skill-guided authoring insufficient (S7).
+
+Design references: [Røde — Designing better artifacts for Dia](https://www.linkedin.com/pulse/designing-better-artifacts-dia-browser-christine-r%C3%B8de-z0ame) (consistent · subtly varied · rooted in convention; constraints as the quality signal), [thread with the artifact wall shot](https://x.com/chrstnerode/status/2065070625970946175).
+
+**Decision (Paper Brief):** Adopt Dia's report aesthetic — analyzed from the artifact wall image — as a new flagship direction for reports and plans:
+
+- One ink, many papers: near-black ink (`#1a1917`) on rotating pastel paper tints (blush `#fdeae4`, mint `#e8f0e4`, pale blue `#e2ecf6`, butter `#faf3d7`, lavender `#ece7f6`); layout identical, paper varies per artifact in a series.
+- Memo chrome: uppercase letterspaced doc type top-left, full date top-right, hairline rule below.
+- Two-tier type: large italic serif display titles (`ui-serif`/Georgia italic — no web fonts) over small sans labels/body; Roman-numeral italic section heads; bold reserved for inline key numbers.
+- Stat band: hairline-framed row of large figures with muted micro-labels and a comparison line ("34.2% · Adoption · vs. 25% target").
+- Numbered items as a label + description two-column grid.
+- Chart texture *assignment rules*, not just recipes: solid ink fill to the lowest-mean series, then dots, then crosshatch; same dark ink on every bar in inked modes.
+
+Skipped from Dia: painting covers (need external raster assets; Gallery direction approximates the mood) and the sheet-on-wood staging (photo presentation, not document design).
+
+Note: S1–S3 and S7 are implemented in the Shareframe repo; S4–S6 in the installed skill (`~/.claude/skills/shareframe-publish`, upstreamed to the skill source). Tracked here because the design system originates from Workboard's house style.
+
+## Items
+
+### S1 — `shareframe check` + publish gate
+
+Status: **Planned**
+
+Port the skill's `check_html_artifact.py` into the CLI and extend it: slop markers (violet/indigo hexes, gradient text, emoji-prefixed headings, `backdrop-filter`), unmodified-template dark block, missing print styles, missing `:focus-visible`, WCAG contrast on `:root` token pairs, plus the existing structural/secret/asset checks. `shareframe publish` and `update` run it automatically and refuse on ERROR (`--force` to override, always prints what it skipped).
+
+Acceptance criteria:
+
+- [ ] `shareframe check <file|dir>` reports ERROR/WARN with the same or stricter coverage than the skill's Python checker.
+- [ ] Publishing an artifact with ERRORs fails without `--force`; an agent with no skill installed still cannot publish slop.
+- [ ] Checker version ships with the CLI; the skill's local script is deleted once this lands.
+
+### S2 — `shareframe new --direction <name>`
+
+Status: **Planned**
+
+Scaffold an artifact file with a design direction baked in as code: direction tokens, "same poster, printed on black paper" dark block, `color-scheme: light dark`, protective overflow CSS, CSS-only interaction furniture (`+`/`–` details markers, numbered steps, ink-rule lists), optional rise-in motion with `prefers-reduced-motion` fallback, print block, and an `<svg><defs>` block (arrowhead markers, hatch/dot patterns, plate frame) for illustrations. Directions: **Paper Brief** (flagship, per the decision above, `--paper <tint>` to pick or rotate the stock) plus the skill's set, with Xerox Brief upgraded to Workboard's house execution (highlighter system, `--on-highlight`, rule-above section labels). `--list` prints directions with one-line moods.
+
+Acceptance criteria:
+
+- [ ] `shareframe new plan.html --direction xerox` produces a file that passes `shareframe check` untouched.
+- [ ] Dark mode preserves each direction's character (or the scaffold states `stays paper`); no generic dark palette.
+- [ ] Directions are versioned with the CLI; skill references them by name instead of embedding token blocks.
+
+### S3 — `shareframe preview --shots`
+
+Status: **Planned**
+
+Headless renders of an artifact to PNGs: 360/768/1280 widths, dark scheme, and print emulation; prints the file paths so the authoring agent can look at its own work before publishing. Uses an installed Chrome/Chromium via CDP; degrades with a clear message when none is found.
+
+Acceptance criteria:
+
+- [ ] One command yields all five shots for a single-file or directory artifact.
+- [ ] Overflow, mismatched dark tokens, and broken layout are visible in the shots (no CSS injected, no viewport lies).
+- [ ] Runs offline, no auth, no model calls.
+
+### S4 — Skill slimmed to routing + judgment
+
+Status: **Planned**
+
+With S1–S3 the skill stops carrying enforcement and scaffolding: Fast Path becomes scaffold (`new`) → author → `check` → `preview` shots reviewed → `publish`/`update`. Merge `html-use-cases.md` into the decision tree, fold `html-quality.md` remnants into SKILL.md/template, keep the directions' *moods and signature moves* as the creative guidance, drop what the checker now gates. Paper Brief becomes the default for reports and plans and absorbs Datasheet and the report-side of Editorial Essay, so the direction count stays flat. Series rule per Dia: same audience/series → same direction, vary paper tint and dateline; new content type → new direction.
+
+Acceptance criteria:
+
+- [ ] SKILL.md ≤ 120 lines; always-read set (SKILL + directions) shrinks below today's ~500 lines.
+- [ ] No rule exists in prose that the checker enforces mechanically.
+- [ ] Screenshot review is a firm Fast Path step, not a suggestion.
+
+### S5 — Illustrations guide
+
+Status: **Planned**
+
+Compact reference (~80 lines) for information-carrying inline SVG: flows, timelines, architecture, comparisons, annotated states — never decorative clip-art.
+
+Method (proven in a prior session's architecture map; generalizes to any system diagram):
+
+1. **Diagram as argument, not data dump.** Decide the 2–3 claims the picture should make before placing anything; every layout choice follows from them. Auto-layout (mermaid) has no opinion — meaningless geometry is why generated diagrams feel bad.
+2. **Strict visual budget, one meaning per channel.** Position = zone/stage (columns left→right in request/flow direction); line style = semantics (solid request, dashed fire-and-forget, thick live channel); exactly one accent, spent only on the edges that matter (secrets, trust); containment replaces edge bundles. Hard cap ≤12 boxes — merge until under it.
+3. **Plan coordinates as a table before writing SVG.** ~140px gutters for edge labels; check every orthogonal edge for crossings by comparing x/y ranges on paper first.
+4. **Verify by looking.** Render, inspect as an image, fix collisions (lines through text, clipped boxes), repeat until clean — the first draft is never collision-free. This is the S3 `preview --shots` loop; S3 also removes the method's headless-Chrome availability caveat.
+5. **Inherit the design.** Use the direction's tokens (`currentColor`, `var(--ink)`/`var(--accent)`, `font-family: inherit`) so the figure looks native, never like a tool's output.
+
+Mechanics: fixed viewBox on an 8px grid, ~1100px wide with `width:100%; min-width:1000px` in an overflow-x container; text ≥12px rendered; boxes sized to measured label length; arrows edge-to-edge with `marker-end`, never through text; series distinguished by hatch/dot patterns from the scaffold defs per the Paper Brief assignment rules; figures framed as numbered plates where the direction calls for it. Trade-off stated in the guide: ~10× the effort of a mermaid block, tops out around 15 boxes — for throwaway sketches or 30-node graphs, a pre-rendered simple flow is the right tool.
+
+Acceptance criteria:
+
+- [ ] Guide fits in one reference file; scaffold defs (S2) cover its patterns.
+- [ ] A generated flow diagram with 6+ nodes passes visual review without manual fixes in the common case.
+- [ ] An architecture map built per the method reads its 2–3 claims from layout alone (verified in the S6 blind review).
+
+### S6 — Eval gallery
+
+Status: **Planned**
+
+Five representative tasks (implementation plan, research report, metrics dashboard, clickable prototype, doc conversion) rendered per direction, screenshotted via S3, reviewed blind. Findings feed back into directions, template, and checker. Rerun after S1–S5 land; the S6 verdict is the decision gate for S7.
+
+### S7 — `shareframe compose` (deferred)
+
+Status: **Deferred — decision gated on S6**
+
+Delegated generation: markdown + brief in, CLI generates the artifact via the Agent SDK (explicit `--model`, explicit auth story, opt-in only). Only built if S6 shows skill-guided authoring with the S1–S3 toolbench still produces clearly worse artifacts in blind comparison. Known costs: lost conversation context in the handoff, auth/env fragility (logins, aliases, key routing), doubled latency, unattributable failures.
+
+## Out of scope (for now)
+
+- External web fonts or remote assets in artifacts (CSP stays script-free, self-contained)
+- Raster/photographic illustration pipelines (paintings à la Dia's Morning Brief)
+- Artifact-side JavaScript, even progressive enhancement
