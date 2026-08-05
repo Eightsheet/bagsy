@@ -87,6 +87,8 @@ export const claims = pgTable(
     description: text("description"),
     files: jsonb("files").$type<string[]>().notNull().default([]),
     roadmapRef: text("roadmap_ref"),
+    /** Link to a published plan document (e.g. a Shareframe artifact) for this claim. */
+    planUrl: text("plan_url"),
     agentLabel: text("agent_label"),
     note: text("note"),
     resolvedRef: text("resolved_ref"),
