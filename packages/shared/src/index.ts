@@ -7,6 +7,8 @@ export interface ClaimInput {
   description?: string | null;
   files: string[];
   roadmapRef?: string | null;
+  /** Link to a published plan document (e.g. a Shareframe artifact). */
+  planUrl?: string | null;
   agentLabel?: string | null;
   note?: string | null;
   strict?: boolean;
@@ -27,6 +29,8 @@ export interface ClaimRecord {
   description: string | null;
   files: string[];
   roadmapRef: string | null;
+  /** Link to a published plan document (e.g. a Shareframe artifact). */
+  planUrl: string | null;
   agentLabel: string | null;
   note: string | null;
   userId: string;

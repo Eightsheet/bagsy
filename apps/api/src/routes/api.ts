@@ -92,6 +92,15 @@ const claimBody = z.object({
   files: z.array(z.string()).default([]),
   branch: z.string().max(200).optional().nullable(),
   roadmapRef: z.string().max(200).optional().nullable(),
+  planUrl: z
+    .string()
+    .url()
+    .max(500)
+    .refine((u) => ["http:", "https:"].includes(new URL(u).protocol), {
+      message: "planUrl must be an http(s) URL",
+    })
+    .optional()
+    .nullable(),
   agentLabel: z.string().max(200).optional().nullable(),
   note: z.string().max(1000).optional().nullable(),
   strict: z.boolean().optional(),

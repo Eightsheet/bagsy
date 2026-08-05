@@ -150,7 +150,7 @@ WorkOS redirect URIs (the **web** origin — the Worker proxies the callback to 
 ```bash
 bagsy login
 bagsy status [--org slug]
-bagsy claim -t "Title" -f path/a [--strict] [--org slug]
+bagsy claim -t "Title" -f path/a [--plan-url URL] [--strict] [--org slug]
 bagsy heartbeat --note "…"
 bagsy release current
 bagsy link-repo [--org slug]

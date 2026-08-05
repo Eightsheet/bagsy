@@ -117,6 +117,22 @@ Designed to be thrown out the moment real users make always-on worth paying for:
 - [ ] Deploy healthcheck passes and verifies a real app boot; subsequent `/health` probes don't prevent sleep.
 - [ ] `SLEEP_DISABLED=1` restores today's always-on behavior exactly.
 
+### R7 — Plan links on claims
+
+Status: **Done** · Claim ref: `roadmap:R7-plan-links` (shipped claims used `roadmap:R4-plan-links` before the number collided with repo groups)
+
+A claim title plus a few notes is thin evidence when deciding whether to steal a STALE claim or pick up a planned one. Let a claim carry a link to the full published plan (typically a Shareframe HTML artifact) so teammates can read the actual intent before acting.
+
+Shipped shape:
+
+1. `bagsy claim` / `bagsy plan` accept `--plan-url URL` (http(s) only); stored on the claim at create time.
+2. API: nullable `plan_url` column on `claims`, `planUrl` in the claim body (validated URL, max 500) and in every claim response.
+3. `bagsy status` shows a `plan: <url>` line for claims that have one; the URL is also echoed after a successful claim/plan.
+
+Resolved defaults:
+
+- Create-time only — heartbeats cannot rewrite the plan link; publish a new artifact and re-claim if the plan changes materially.
+
 ## Out of scope (for now)
 
 - Billing / seats
