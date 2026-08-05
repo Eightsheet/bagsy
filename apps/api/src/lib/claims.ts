@@ -108,9 +108,7 @@ export async function listBoardClaimsForRepos(
   repos: string[],
 ): Promise<ClaimRecord[]> {
   const normalized = [...new Set(repos.map(normalizeRepo))];
-  for (const repo of normalized) {
-    await refreshClaimLifecycle(orgId, repo);
-  }
+  await Promise.all(normalized.map((repo) => refreshClaimLifecycle(orgId, repo)));
 
   const org = await db.select().from(organizations).where(eq(organizations.id, orgId)).limit(1);
   const orgSlug = org[0]?.slug ?? "";

@@ -91,7 +91,13 @@ export async function addReposToProject(
   projectId: string,
   repos: string[],
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const normalized = [...new Set(repos.map(normalizeRepo))];
+  let normalized: string[];
+  try {
+    normalized = [...new Set(repos.map(normalizeRepo))];
+  } catch (err) {
+    // normalizeRepo throws on malformed ids; that's caller input, not a 500.
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
   if (normalized.length === 0) return { ok: true };
 
   const rows = await db
